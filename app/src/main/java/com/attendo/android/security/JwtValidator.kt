@@ -19,15 +19,15 @@ class JwtValidator @Inject constructor() {
             val claims = Jwts.parser()
                 .verifyWith(key)
                 .build()
-                .parseSignedClaims(token)
+                .parseSignedClaims(token.trim())
                 .payload
 
-            val hwId = claims["hwId"] as? String
+            val hwId = (claims["hwId"] as? String)?.trim()
             
-            if (hwId == expectedHwId) {
+            if (hwId == expectedHwId.trim()) {
                 Result.success(true)
             } else {
-                Result.failure(Exception("License hardware mismatch"))
+                Result.failure(Exception("License hardware mismatch. Expected: $expectedHwId, Got: $hwId"))
             }
         } catch (e: Exception) {
             Result.failure(e)
