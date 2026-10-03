@@ -1,0 +1,6 @@
+{
+  "name": "Attendo",
+  "description": "Offline Attendance & Verification System with QR Scanning, Roster Management, and Licensing",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
