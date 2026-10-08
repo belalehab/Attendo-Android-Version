@@ -4,34 +4,33 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,7 +40,7 @@ import com.attendo.android.ui.roster.AddStudentDialog
 import com.attendo.android.ui.roster.EditStudentDialog
 import com.attendo.android.ui.roster.RosterViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RosterScreen(
     activeWorkspace: String?,
@@ -51,11 +50,37 @@ fun RosterScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingStudent by remember { mutableStateOf<Student?>(null) }
+    var archivingStudent by remember { mutableStateOf<Student?>(null) }
+    var deletingStudent by remember { mutableStateOf<Student?>(null) }
     var localSearch by remember { mutableStateOf("") }
+    
+    val context = LocalContext.current
+    var selectedStudentIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    val isSelectionMode = selectedStudentIds.isNotEmpty()
 
     val csvLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri: Uri? -> uri?.let { viewModel.importCsv(it) } }
+    )
+
+    val templateLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+        onResult = { uri: Uri? -> uri?.let { viewModel.exportTemplate(it, context) } }
+    )
+
+    val qrPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf"),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                val studentsToExport = if (isSelectionMode) {
+                    uiState.students.filter { s -> selectedStudentIds.contains(s.id) }
+                } else {
+                    uiState.students
+                }
+                viewModel.exportQRs(it, context, studentsToExport)
+                selectedStudentIds = emptySet()
+            }
+        }
     )
 
     LaunchedEffect(activeWorkspace) {
@@ -84,143 +109,130 @@ fun RosterScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                if (isSelectionMode) {
                     Text(
-                        text = "Workspace Roster",
+                        text = "Selected: ${selectedStudentIds.size}",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         color = Color(0xFF14B8A6)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Import new lists and manage enrolled students.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Badges Row for mobile
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = { /* TODO Phase 4 */ },
-                    border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
-                ) {
-                    Icon(Icons.Outlined.Archive, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Archived Students", fontSize = 12.sp)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Row(
-                    modifier = Modifier
-                        .background(Color(0xFF0F172A), RoundedCornerShape(8.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("ACTIVE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("${uiState.students.size}", color = Color(0xFF14B8A6), fontSize = 14.sp, fontWeight = FontWeight.Black)
+                    TextButton(onClick = { selectedStudentIds = emptySet() }) {
+                        Text("Cancel Selection", color = Color.Gray)
+                    }
+                } else {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (uiState.isArchiveView) "Archived Roster" else "Workspace Roster",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF14B8A6)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (uiState.isArchiveView) "Manage archived students." else "Import new lists and manage enrolled students.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF3B82F6).copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .clickable { viewModel.setArchiveView(!uiState.isArchiveView) }
+                    ) {
+                        Text(
+                            text = if (uiState.isArchiveView) "VIEW ACTIVE ${uiState.activeCount}" else "VIEW ARCHIVED",
+                            color = Color(0xFF60A5FA),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Search Bar
-            OutlinedTextField(
-                value = localSearch,
-                onValueChange = { localSearch = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search Active Roster...", color = Color.Gray) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF0F172A),
-                    unfocusedContainerColor = Color(0xFF0F172A),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Controls Scroll Row
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = { /* TODO Phase 4 */ },
-                    border = BorderStroke(1.dp, Color(0xFF14B8A6).copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6))
+            // Action Buttons
+            if (!uiState.isArchiveView) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Description, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Template", fontSize = 12.sp)
-                }
-
-                // Dashed outline button
-                val dashedColor = Color.Gray
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .drawBehind {
-                            drawRoundRect(
-                                color = dashedColor,
-                                style = Stroke(
-                                    width = 2f,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                                ),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
-                            )
-                        }
-                        .background(Color.Transparent)
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.clickable { csvLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv")) },
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedButton(
+                        onClick = { templateLauncher.launch("Attendo_Template.csv") },
+                        border = BorderStroke(1.dp, Color.Gray),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                     ) {
-                        Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Import CSV", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Outlined.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Template", fontSize = 12.sp)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .drawBehind {
+                                drawRoundRect(
+                                    color = Color.Gray,
+                                    style = Stroke(
+                                        width = 2f,
+                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                                    ),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
+                                )
+                            }
+                            .background(Color.Transparent)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            modifier = Modifier.clickable { csvLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv")) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Import CSV", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { qrPdfLauncher.launch("Attendo_QRs.pdf") },
+                        border = BorderStroke(1.dp, Color(0xFF14B8A6)),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6)),
+                        modifier = Modifier.padding(0.dp)
+                    ) {
+                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("QRs", fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = { showAddDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488), contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-
-                OutlinedButton(
-                    onClick = { /* TODO Phase 4 */ },
-                    border = BorderStroke(1.dp, Color(0xFF14B8A6)),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6))
-                ) {
-                    Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Download QRs", fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = { showAddDialog = true },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488), contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Student", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Row {
+                    OutlinedButton(
+                        onClick = { qrPdfLauncher.launch("Attendo_QRs.pdf") },
+                        border = BorderStroke(1.dp, Color(0xFF14B8A6)),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6))
+                    ) {
+                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Download QRs", fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -233,12 +245,10 @@ fun RosterScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.Transparent, modifier = Modifier.size(24.dp)) // spacer for checkbox align
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("SELECT ALL (LONG-PRESS FOR ACTIONS)", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("STUDENT NAME", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.weight(1f))
                 Text("GRADE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.width(24.dp)) // spacer for trailing 3 dots
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -250,7 +260,7 @@ fun RosterScreen(
                 }
             } else if (filteredStudents.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No students found in ${activeWorkspace ?: "workspace"}", color = Color.Gray)
+                    Text("No students found.", color = Color.Gray)
                 }
             } else {
                 LazyColumn(
@@ -258,11 +268,27 @@ fun RosterScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredStudents, key = { it.id }) { student ->
+                        val isSelected = selectedStudentIds.contains(student.id)
                         StudentCard(
                             student = student,
+                            isSelected = isSelected,
+                            isSelectionMode = isSelectionMode,
+                            isArchiveView = uiState.isArchiveView,
+                            onToggleSelection = {
+                                selectedStudentIds = if (isSelected) {
+                                    selectedStudentIds - student.id
+                                } else {
+                                    selectedStudentIds + student.id
+                                }
+                            },
                             onEdit = { editingStudent = student },
-                            onArchive = { viewModel.archiveStudent(student) },
-                            onDelete = { viewModel.deleteStudentPermanently(student) }
+                            onSwipeLeftAction = { 
+                                if (uiState.isArchiveView) {
+                                    deletingStudent = student
+                                } else {
+                                    archivingStudent = student
+                                }
+                            }
                         )
                     }
                 }
@@ -292,79 +318,152 @@ fun RosterScreen(
             }
         )
     }
+
+    archivingStudent?.let { student ->
+        AlertDialog(
+            onDismissRequest = { archivingStudent = null },
+            title = { Text("Archive Student") },
+            text = { Text("Are you sure you want to archive ${student.name}?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.archiveStudent(student)
+                        archivingStudent = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Archive")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { archivingStudent = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    deletingStudent?.let { student ->
+        AlertDialog(
+            onDismissRequest = { deletingStudent = null },
+            title = { Text("Delete Student") },
+            text = { Text("Are you sure you want to permanently delete ${student.name}?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteStudentPermanently(student)
+                        deletingStudent = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingStudent = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun StudentCard(
     student: Student,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    isArchiveView: Boolean,
+    onToggleSelection: () -> Unit,
     onEdit: () -> Unit,
-    onArchive: () -> Unit,
-    onDelete: () -> Unit
+    onSwipeLeftAction: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { dismissValue ->
+            if (dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                onEdit()
+                false
+            } else if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                onSwipeLeftAction()
+                false
+            } else {
+                false
+            }
+        }
+    )
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF0F172A),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Placeholder for checkbox to match visual parity
-            Box(
-                modifier = Modifier
-                    .size(18.dp)
-                    .background(Color.White, RoundedCornerShape(4.dp))
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = student.name, 
-                    color = Color.White, 
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = student.nationalId ?: "No ID", 
-                    color = Color.Gray, 
-                    fontSize = 12.sp
-                )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = !isSelectionMode,
+        enableDismissFromEndToStart = !isSelectionMode,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color = when (dismissState.targetValue) {
+                SwipeToDismissBoxValue.StartToEnd -> Color(0xFF3B82F6) // Blue Edit
+                SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444) // Red for Archive or Delete
+                else -> Color.Transparent
+            }
+            val alignment = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                else -> Alignment.Center
+            }
+            val icon = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                SwipeToDismissBoxValue.EndToStart -> if (isArchiveView) Icons.Default.Delete else Icons.Outlined.Archive
+                else -> Icons.Default.Edit
             }
             
-            Text(
-                text = student.grade ?: "N/A",
-                color = Color.Gray,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-
-            Box {
-                IconButton(onClick = { expanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Color.Gray)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 20.dp),
+                contentAlignment = alignment
+            ) {
+                Icon(icon, contentDescription = null, tint = Color.White)
+            }
+        }
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onLongClick = { onToggleSelection() },
+                    onClick = { if (isSelectionMode) onToggleSelection() }
+                ),
+            color = if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A),
+            shape = RoundedCornerShape(12.dp),
+            border = if (isSelected) BorderStroke(1.dp, Color(0xFF14B8A6)) else null
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = student.name, 
+                        color = Color.White, 
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = student.nationalId ?: "No ID", 
+                        color = Color.Gray, 
+                        fontSize = 12.sp
+                    )
                 }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Edit") },
-                        onClick = { expanded = false; onEdit() },
-                        leadingIcon = { Icon(Icons.Default.Edit, null) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Archive") },
-                        onClick = { expanded = false; onArchive() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error) },
-                        onClick = { expanded = false; onDelete() },
-                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
-                    )
-                }
+                
+                Text(
+                    text = student.grade ?: "N/A",
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
             }
         }
     }
 }
-

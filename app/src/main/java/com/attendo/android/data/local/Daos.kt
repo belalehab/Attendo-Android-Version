@@ -64,6 +64,9 @@ interface StudentDao {
     @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 0 ORDER BY name ASC")
     fun getActiveStudentsByGrade(grade: String): Flow<List<Student>>
 
+    @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 1 ORDER BY name ASC")
+    fun getArchivedStudentsByGrade(grade: String): Flow<List<Student>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertStudent(student: Student): Long
 
