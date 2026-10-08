@@ -93,7 +93,7 @@ fun WorkspaceSelectorScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
-                                letterSpacing = 1.5.dp
+                                letterSpacing = 1.5.sp
                             )
                         }
                     }
@@ -145,7 +145,7 @@ fun WorkspaceSelectorScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 textAlign = TextAlign.Center,
-                                letterSpacing = 1.5.dp
+                                letterSpacing = 1.5.sp
                             )
                         }
                     }
