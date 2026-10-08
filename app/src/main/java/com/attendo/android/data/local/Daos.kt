@@ -8,13 +8,39 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
-@Dao
-interface SettingsDao {
-    @Query("SELECT value FROM settings WHERE key = :key")
-    suspend fun getSetting(key: String): String?
+data class SessionSummary(
+    val sessionName: String,
+    val date: String,
+    val attendeesCount: Int
+)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun saveSetting(setting: Setting)
+data class AttendanceWithStudent(
+    @androidx.room.Embedded val attendance: Attendance,
+    val studentName: String
+)
+
+@Dao
+interface StudentDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertStudent(student: Student)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertStudents(students: List<Student>)
+
+    @Update
+    suspend fun updateStudent(student: Student)
+
+    @Delete
+    suspend fun deleteStudent(student: Student)
+
+    @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 0 ORDER BY name ASC")
+    fun getActiveStudentsByGrade(grade: String): Flow<List<Student>>
+    
+    @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 1 ORDER BY name ASC")
+    fun getArchivedStudentsByGrade(grade: String): Flow<List<Student>>
+
+    @Query("SELECT * FROM students WHERE national_id = :nationalId LIMIT 1")
+    suspend fun getStudentById(nationalId: String): Student?
 }
 
 @Dao
@@ -33,6 +59,26 @@ interface AttendanceDao {
 
     @Query("SELECT DISTINCT session_name FROM attendance WHERE session_name LIKE :workspacePrefix ORDER BY timestamp DESC")
     fun getDistinctSessions(workspacePrefix: String): Flow<List<String>>
+    
+    @Query("""
+        SELECT session_name AS sessionName, 
+               MAX(timestamp) AS date, 
+               COUNT(*) AS attendeesCount 
+        FROM attendance 
+        WHERE session_name LIKE :workspacePrefix AND is_archived = :isArchived
+        GROUP BY session_name 
+        ORDER BY MAX(timestamp) DESC
+    """)
+    fun getSessionSummaries(workspacePrefix: String, isArchived: Int): Flow<List<SessionSummary>>
+    
+    @Query("UPDATE attendance SET is_archived = 1 WHERE session_name = :sessionName")
+    suspend fun archiveSession(sessionName: String)
+
+    @Query("UPDATE attendance SET is_archived = 0 WHERE session_name = :sessionName")
+    suspend fun restoreSession(sessionName: String)
+    
+    @Query("DELETE FROM attendance WHERE session_name = :sessionName")
+    suspend fun deleteSession(sessionName: String)
 
     @Query("""
         SELECT a.*, s.name as studentName 
@@ -46,36 +92,16 @@ interface AttendanceDao {
         SELECT a.* 
         FROM attendance a
         INNER JOIN students s ON a.national_id = s.national_id
-        WHERE s.grade = :grade
+        WHERE s.grade = :workspace
     """)
-    fun getAllAttendanceForGrade(grade: String): Flow<List<Attendance>>
+    fun getWorkspaceAttendance(workspace: String): Flow<List<Attendance>>
 }
 
-data class AttendanceWithStudent(
-    @androidx.room.Embedded val attendance: Attendance,
-    val studentName: String
-)
-
 @Dao
-interface StudentDao {
-    @Query("SELECT * FROM students WHERE national_id = :nationalId LIMIT 1")
-    suspend fun getStudentById(nationalId: String): Student?
+interface SettingsDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveSetting(setting: Setting)
 
-    @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 0 ORDER BY name ASC")
-    fun getActiveStudentsByGrade(grade: String): Flow<List<Student>>
-
-    @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 1 ORDER BY name ASC")
-    fun getArchivedStudentsByGrade(grade: String): Flow<List<Student>>
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertStudent(student: Student): Long
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertStudents(students: List<Student>)
-
-    @Update
-    suspend fun updateStudent(student: Student)
-
-    @Delete
-    suspend fun deleteStudent(student: Student)
+    @Query("SELECT value FROM settings WHERE `key` = :key")
+    suspend fun getSetting(key: String): String?
 }

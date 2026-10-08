@@ -5,10 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.attendo.android.data.local.Attendance
 import com.attendo.android.data.local.AttendanceDao
 import com.attendo.android.data.local.AttendanceWithStudent
+import com.attendo.android.data.local.SessionSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,39 +26,79 @@ class HistoryViewModel @Inject constructor(
     private val attendanceDao: AttendanceDao
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HistoryUiState())
-    val uiState: StateFlow<HistoryUiState> = _uiState
+    private val _isArchiveView = MutableStateFlow(false)
+    private val _activeWorkspace = MutableStateFlow<String?>(null)
+    private val _sessionSummaries = MutableStateFlow<List<SessionSummary>>(emptyList())
+    private val _selectedSession = MutableStateFlow<String?>(null)
+    private val _sessionRecords = MutableStateFlow<List<AttendanceWithStudent>>(emptyList())
+    private val _activeCount = MutableStateFlow(0)
+
+    val uiState: StateFlow<HistoryUiState> = combine(
+        _isArchiveView,
+        _activeWorkspace,
+        _sessionSummaries,
+        _selectedSession,
+        _sessionRecords,
+        _activeCount
+    ) { isArchive, workspace, summaries, selected, records, activeCount ->
+        HistoryUiState(
+            isArchiveView = isArchive,
+            activeWorkspace = workspace,
+            sessionSummaries = summaries,
+            selectedSession = selected,
+            sessionRecords = records,
+            activeCount = activeCount
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HistoryUiState())
 
     private var sessionsJob: Job? = null
     private var detailJob: Job? = null
-    private var currentWorkspace: String? = null
+    private var countJob: Job? = null
+
+    fun setArchiveView(isArchive: Boolean) {
+        _isArchiveView.value = isArchive
+        _activeWorkspace.value?.let { loadSessions(it) }
+    }
 
     fun loadSessions(workspace: String) {
-        if (currentWorkspace == workspace) return
-        currentWorkspace = workspace
+        _activeWorkspace.value = workspace
+        val prefix = "[$workspace]%"
+        
+        // Track active count always
+        countJob?.cancel()
+        countJob = viewModelScope.launch {
+            attendanceDao.getSessionSummaries(prefix, 0).collect { activeList ->
+                _activeCount.value = activeList.size
+                if (!_isArchiveView.value) {
+                    _sessionSummaries.value = activeList
+                }
+            }
+        }
         
         sessionsJob?.cancel()
         sessionsJob = viewModelScope.launch {
-            // Match sessions like "[Grade 10] Math..."
-            val prefix = "[$workspace]%"
-            attendanceDao.getDistinctSessions(prefix).collect { sessions ->
-                _uiState.value = _uiState.value.copy(sessions = sessions)
+            if (_isArchiveView.value) {
+                attendanceDao.getSessionSummaries(prefix, 1).collect { archivedList ->
+                    if (_isArchiveView.value) {
+                        _sessionSummaries.value = archivedList
+                    }
+                }
             }
         }
     }
 
     fun selectSession(sessionName: String?) {
-        _uiState.value = _uiState.value.copy(selectedSession = sessionName)
+        _selectedSession.value = sessionName
         
         detailJob?.cancel()
         if (sessionName != null) {
             detailJob = viewModelScope.launch {
                 attendanceDao.getAttendanceWithStudentNames(sessionName).collect { records ->
-                    _uiState.value = _uiState.value.copy(sessionRecords = records)
+                    _sessionRecords.value = records
                 }
             }
         } else {
-            _uiState.value = _uiState.value.copy(sessionRecords = emptyList())
+            _sessionRecords.value = emptyList()
         }
     }
 
@@ -84,6 +128,31 @@ class HistoryViewModel @Inject constructor(
             attendanceDao.deleteAttendance(record)
         }
     }
+    
+    // Bulk / Single actions for sessions
+    fun archiveSessions(sessionNames: List<String>) {
+        viewModelScope.launch {
+            sessionNames.forEach { name ->
+                attendanceDao.archiveSession(name)
+            }
+        }
+    }
+    
+    fun restoreSessions(sessionNames: List<String>) {
+        viewModelScope.launch {
+            sessionNames.forEach { name ->
+                attendanceDao.restoreSession(name)
+            }
+        }
+    }
+    
+    fun deleteSessions(sessionNames: List<String>) {
+        viewModelScope.launch {
+            sessionNames.forEach { name ->
+                attendanceDao.deleteSession(name)
+            }
+        }
+    }
 
     private fun appendAudit(existingTrail: String?, action: String): String {
         val trail = if (existingTrail.isNullOrBlank()) "[]" else existingTrail
@@ -101,7 +170,10 @@ class HistoryViewModel @Inject constructor(
 }
 
 data class HistoryUiState(
-    val sessions: List<String> = emptyList(),
+    val isArchiveView: Boolean = false,
+    val activeWorkspace: String? = null,
+    val sessionSummaries: List<SessionSummary> = emptyList(),
     val selectedSession: String? = null,
-    val sessionRecords: List<AttendanceWithStudent> = emptyList()
+    val sessionRecords: List<AttendanceWithStudent> = emptyList(),
+    val activeCount: Int = 0
 )
