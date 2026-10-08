@@ -10,6 +10,8 @@ import com.attendo.android.ui.setup.SetupScreen
 import com.attendo.android.ui.shell.MainShellScreen
 import com.attendo.android.ui.shell.MainViewModel
 import com.attendo.android.ui.workspace.WorkspaceSelectorScreen
+import com.attendo.android.ui.settings.SettingsScreen
+import com.attendo.android.ui.settings.AboutScreen
 
 @Composable
 fun AttendoNavGraph() {
@@ -44,8 +46,20 @@ fun AttendoNavGraph() {
                 mainViewModel = mainViewModel,
                 onChangeWorkspace = {
                     navController.navigate("workspace_selector") { popUpTo("main_shell") { inclusive = true } }
+                },
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                },
+                onNavigateToAbout = {
+                    navController.navigate("about")
                 }
             )
+        }
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("about") {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
     }
 }
