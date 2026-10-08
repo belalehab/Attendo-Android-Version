@@ -288,8 +288,6 @@ fun HistoryScreen(
         BackHandler { viewModel.selectSession(null) }
         
         var auditSearch by remember { mutableStateOf("") }
-        var selectedAudit by remember { mutableStateOf<String?>(null) }
-        
         val pdfLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.CreateDocument("application/pdf"),
             onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsPdf(context, it) } }
@@ -383,8 +381,7 @@ fun HistoryScreen(
 
                 // List Header
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("STUDENT NAME", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(2f))
-                    Text("ID", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.5f))
+                    Text("STUDENT NAME", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(2.5f))
                     Text("BONUS POINTS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.5f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Text("ATTENDANCE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
@@ -399,21 +396,11 @@ fun HistoryScreen(
                         AuditEntryCard(
                             entry = entry,
                             onToggleState = { viewModel.cycleAttendanceState(entry.student) },
-                            onDeltaBonus = { delta -> viewModel.changeBonusPoints(entry.student, delta) },
-                            onViewAudit = { selectedAudit = entry.attendance?.auditTrail }
+                            onDeltaBonus = { delta -> viewModel.changeBonusPoints(entry.student, delta) }
                         )
                     }
                 }
             }
-        }
-        
-        if (selectedAudit != null) {
-            AlertDialog(
-                onDismissRequest = { selectedAudit = null },
-                title = { Text("Audit Ledger") },
-                text = { Text(selectedAudit ?: "[]") },
-                confirmButton = { TextButton(onClick = { selectedAudit = null }) { Text("Close") } }
-            )
         }
     }
 }
@@ -532,8 +519,7 @@ fun SessionCard(
 fun AuditEntryCard(
     entry: SessionAuditEntry,
     onToggleState: () -> Unit,
-    onDeltaBonus: (Int) -> Unit,
-    onViewAudit: () -> Unit
+    onDeltaBonus: (Int) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -549,14 +535,7 @@ fun AuditEntryCard(
                 color = Color.White, 
                 fontWeight = FontWeight.Bold, 
                 fontSize = 13.sp, 
-                modifier = Modifier.weight(2f)
-            )
-            
-            Text(
-                text = entry.student.nationalId ?: "N/A", 
-                color = Color.Gray, 
-                fontSize = 12.sp, 
-                modifier = Modifier.weight(1.5f)
+                modifier = Modifier.weight(2.5f)
             )
             
             Row(
@@ -606,14 +585,8 @@ fun AuditEntryCard(
                     Text(text = label, color = textColor, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
-            
-            if (entry.attendance != null) {
-                IconButton(onClick = onViewAudit, modifier = Modifier.size(24.dp).padding(start = 4.dp)) {
-                    Icon(Icons.Default.Info, contentDescription = "Audit", tint = Color.Gray, modifier = Modifier.size(16.dp))
-                }
-            } else {
-                Spacer(modifier = Modifier.width(24.dp))
-            }
         }
     }
 }
+
+
