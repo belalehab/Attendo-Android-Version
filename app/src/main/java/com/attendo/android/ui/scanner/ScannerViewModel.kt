@@ -5,12 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.attendo.android.data.local.Attendance
 import com.attendo.android.data.local.AttendanceDao
 import com.attendo.android.data.local.SettingsDao
+import com.attendo.android.data.local.Student
 import com.attendo.android.data.local.StudentDao
 import com.attendo.android.domain.usecase.QRValidator
 import com.attendo.android.utils.HardwareFeedbackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -29,6 +32,8 @@ class ScannerViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState
+
+    private var studentsJob: Job? = null
 
     fun loadInstructorAndSubject(activeWorkspace: String) {
         viewModelScope.launch {
@@ -49,6 +54,20 @@ class ScannerViewModel @Inject constructor(
                 subjectName = subjectName,
                 activeWorkspace = activeWorkspace
             )
+            
+            observeStudents(activeWorkspace)
+        }
+    }
+
+    private fun observeStudents(workspace: String) {
+        studentsJob?.cancel()
+        studentsJob = viewModelScope.launch {
+            studentDao.getActiveStudentsByGrade(workspace).collectLatest { students ->
+                _uiState.value = _uiState.value.copy(
+                    workspaceStudents = students,
+                    studentCount = students.size
+                )
+            }
         }
     }
 
@@ -83,6 +102,34 @@ class ScannerViewModel @Inject constructor(
         
         viewModelScope.launch {
             processAttendance(nationalId)
+        }
+    }
+    
+    fun onBatchSubmit(nationalIds: List<String>) {
+        if (!_uiState.value.isSessionActive) return
+        viewModelScope.launch {
+            val config = _uiState.value.sessionConfig
+            val sessionTitle = "${config.type} - ${config.group} - W${config.week}"
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            
+            var addedCount = 0
+            for (id in nationalIds) {
+                val student = studentDao.getStudentById(id)
+                if (student != null) {
+                    val attendance = Attendance(
+                        nationalId = id,
+                        sessionName = sessionTitle,
+                        timestamp = timestamp
+                    )
+                    attendanceDao.insertAttendance(attendance)
+                    addedCount++
+                }
+            }
+            if (addedCount > 0) {
+                feedbackManager.playSuccessFeedback()
+                _uiState.value = _uiState.value.copy(lastScannedMessage = "Success: Added $ddedCount students")
+            }
+            resetScanState()
         }
     }
 
@@ -126,6 +173,8 @@ data class ScannerUiState(
     val instructorName: String = "",
     val subjectName: String = "",
     val activeWorkspace: String = "",
+    val workspaceStudents: List<Student> = emptyList(),
+    val studentCount: Int = 0,
     val isProcessingScan: Boolean = false,
     val lastScannedMessage: String? = null
 )

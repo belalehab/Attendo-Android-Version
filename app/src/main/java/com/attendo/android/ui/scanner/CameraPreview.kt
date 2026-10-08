@@ -20,6 +20,7 @@ import com.google.mlkit.vision.common.InputImage
 
 @Composable
 fun CameraPreview(
+    modifier: Modifier = Modifier,
     onQrCodeScanned: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -66,7 +67,7 @@ fun CameraPreview(
             }, ContextCompat.getMainExecutor(ctx))
             previewView
         },
-        modifier = Modifier.fillMaxSize()
+        modifier = modifier
     )
 }
 
