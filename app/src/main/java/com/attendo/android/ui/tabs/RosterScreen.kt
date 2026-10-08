@@ -6,29 +6,29 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.UploadFile
-import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +52,7 @@ fun RosterScreen(
     var editingStudent by remember { mutableStateOf<Student?>(null) }
     var archivingStudent by remember { mutableStateOf<Student?>(null) }
     var deletingStudent by remember { mutableStateOf<Student?>(null) }
-    var localSearch by remember { mutableStateOf("") }
+    val localSearch by remember { mutableStateOf("") }
     
     val context = LocalContext.current
     var selectedStudentIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -68,8 +68,8 @@ fun RosterScreen(
         onResult = { uri: Uri? -> uri?.let { viewModel.exportTemplate(it, context) } }
     )
 
-    val qrPdfLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/pdf"),
+    val qrZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip"),
         onResult = { uri: Uri? ->
             uri?.let {
                 val studentsToExport = if (isSelectionMode) {
@@ -199,7 +199,7 @@ fun RosterScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { qrPdfLauncher.launch("Attendo_QRs.pdf") },
+                        onClick = { qrZipLauncher.launch("Attendo_QRs.zip") },
                         border = BorderStroke(1.dp, Color(0xFF14B8A6)),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6)),
@@ -224,7 +224,7 @@ fun RosterScreen(
             } else {
                 Row {
                     OutlinedButton(
-                        onClick = { qrPdfLauncher.launch("Attendo_QRs.pdf") },
+                        onClick = { qrZipLauncher.launch("Attendo_QRs.zip") },
                         border = BorderStroke(1.dp, Color(0xFF14B8A6)),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6))
@@ -287,6 +287,13 @@ fun RosterScreen(
                                     deletingStudent = student
                                 } else {
                                     archivingStudent = student
+                                }
+                            },
+                            onSwipeRightAction = {
+                                if (uiState.isArchiveView) {
+                                    viewModel.restoreStudent(student)
+                                } else {
+                                    editingStudent = student
                                 }
                             }
                         )
@@ -377,12 +384,13 @@ fun StudentCard(
     isArchiveView: Boolean,
     onToggleSelection: () -> Unit,
     onEdit: () -> Unit,
-    onSwipeLeftAction: () -> Unit
+    onSwipeLeftAction: () -> Unit,
+    onSwipeRightAction: () -> Unit
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-                onEdit()
+                onSwipeRightAction()
                 false
             } else if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                 onSwipeLeftAction()
@@ -400,8 +408,8 @@ fun StudentCard(
         backgroundContent = {
             val direction = dismissState.dismissDirection
             val color = when (dismissState.targetValue) {
-                SwipeToDismissBoxValue.StartToEnd -> Color(0xFF3B82F6) // Blue Edit
-                SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444) // Red for Archive or Delete
+                SwipeToDismissBoxValue.StartToEnd -> if (isArchiveView) Color(0xFF10B981) else Color(0xFF3B82F6)
+                SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444)
                 else -> Color.Transparent
             }
             val alignment = when (direction) {
@@ -410,7 +418,7 @@ fun StudentCard(
                 else -> Alignment.Center
             }
             val icon = when (direction) {
-                SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                SwipeToDismissBoxValue.StartToEnd -> if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Edit
                 SwipeToDismissBoxValue.EndToStart -> if (isArchiveView) Icons.Default.Delete else Icons.Outlined.Archive
                 else -> Icons.Default.Edit
             }

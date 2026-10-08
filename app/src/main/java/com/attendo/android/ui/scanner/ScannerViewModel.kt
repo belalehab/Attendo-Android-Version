@@ -1,5 +1,7 @@
 ﻿package com.attendo.android.ui.scanner
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.attendo.android.core.SessionConfig
@@ -10,7 +12,9 @@ import com.attendo.android.data.local.SettingsDao
 import com.attendo.android.data.local.Student
 import com.attendo.android.data.local.StudentDao
 import com.attendo.android.domain.usecase.QRValidator
+import com.attendo.android.utils.AttendeeEntry
 import com.attendo.android.utils.HardwareFeedbackManager
+import com.attendo.android.utils.SessionExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -32,7 +36,7 @@ class ScannerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
-    
+
     val uiState: StateFlow<ScannerUiState> = combine(
         _uiState,
         sessionManager.sessionState
@@ -48,6 +52,11 @@ class ScannerViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScannerUiState())
 
     private var studentsJob: Job? = null
+    
+    // We cache the latest session data for the summary dialog so it survives clearing
+    var lastSavedSessionTitle: String = ""
+    var lastSavedAttendees: List<AttendeeEntry> = emptyList()
+    var lastSavedAttendeeCount: Int = 0
 
     fun loadInstructorAndSubject(activeWorkspace: String) {
         viewModelScope.launch {
@@ -59,16 +68,13 @@ class ScannerViewModel @Inject constructor(
                 if (subjectsObj.has(activeWorkspace)) {
                     subjectName = subjectsObj.getString(activeWorkspace)
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            
+            } catch (e: Exception) { e.printStackTrace() }
+
             _uiState.value = _uiState.value.copy(
                 instructorName = instructor,
                 subjectName = subjectName,
                 activeWorkspace = activeWorkspace
             )
-            
             observeStudents(activeWorkspace)
         }
     }
@@ -89,15 +95,46 @@ class ScannerViewModel @Inject constructor(
         sessionManager.updateConfig(modifier)
     }
 
-    fun toggleSession() {
-        sessionManager.toggleSession()
+    fun startSession() {
+        if (!sessionManager.sessionState.value.isActive) {
+            sessionManager.toggleSession()
+        }
+    }
+
+    suspend fun stopAndSaveSession() {
+        if (!sessionManager.sessionState.value.isActive) return
+        
+        val session = sessionManager.sessionState.value
+        val config = session.config
+        val workspace = _uiState.value.activeWorkspace
+        val sessionTitle = "[$workspace] ${config.type} - ${config.group} - W${config.week}"
+        
+        lastSavedSessionTitle = sessionTitle
+        lastSavedAttendeeCount = session.scannedAttendees.size
+        
+        val entries = mutableListOf<AttendeeEntry>()
+        for ((nationalId, timestamp) in session.scannedAttendees) {
+            val student = studentDao.getStudentById(nationalId)
+            if (student != null) {
+                entries.add(AttendeeEntry(student.name, nationalId, timestamp))
+            }
+            val attendance = Attendance(
+                nationalId = nationalId,
+                sessionName = sessionTitle,
+                timestamp = timestamp
+            )
+            attendanceDao.insertAttendance(attendance)
+        }
+        lastSavedAttendees = entries
+        
+        // Turn off session but keep the UI state clean
+        sessionManager.clearSession()
     }
 
     fun onQrScanned(payload: String) {
         val session = sessionManager.sessionState.value
         if (!session.isActive || session.isProcessing) return
         sessionManager.setProcessingScan(true)
-        
         viewModelScope.launch {
             val result = qrValidator.validatePayload(payload)
             if (result.isSuccess) {
@@ -114,18 +151,14 @@ class ScannerViewModel @Inject constructor(
         val session = sessionManager.sessionState.value
         if (!session.isActive || session.isProcessing) return
         sessionManager.setProcessingScan(true)
-        
-        viewModelScope.launch {
-            processAttendance(nationalId)
-        }
+        viewModelScope.launch { processAttendance(nationalId) }
     }
-    
+
     fun onBatchSubmit(nationalIds: List<String>) {
         val session = sessionManager.sessionState.value
         if (!session.isActive) return
         viewModelScope.launch {
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            
             var addedCount = 0
             for (id in nationalIds) {
                 val student = studentDao.getStudentById(id)
@@ -144,7 +177,6 @@ class ScannerViewModel @Inject constructor(
 
     private suspend fun processAttendance(nationalId: String) {
         val student = studentDao.getStudentById(nationalId)
-        
         if (student != null) {
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
             sessionManager.addAttendee(nationalId, timestamp)
@@ -163,28 +195,16 @@ class ScannerViewModel @Inject constructor(
         sessionManager.setLastScannedMessage(null)
     }
 
-    fun saveSessionToHistory() {
+    fun exportSessionAsPdf(context: Context, uri: Uri) {
         viewModelScope.launch {
-            val session = sessionManager.sessionState.value
-            val config = session.config
-            val workspace = _uiState.value.activeWorkspace
-            val sessionTitle = "[$workspace] ${config.type} - ${config.group} - W${config.week}"
-            
-            val attendees = session.scannedAttendees
-            for ((nationalId, timestamp) in attendees) {
-                val attendance = Attendance(
-                    nationalId = nationalId,
-                    sessionName = sessionTitle,
-                    timestamp = timestamp
-                )
-                attendanceDao.insertAttendance(attendance)
-            }
-            sessionManager.clearSession()
+            SessionExporter.exportPdf(context, uri, lastSavedSessionTitle, lastSavedAttendees)
         }
     }
-    
-    fun clearSession() {
-        sessionManager.clearSession()
+
+    fun exportSessionAsCsv(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            SessionExporter.exportCsv(context, uri, lastSavedSessionTitle, lastSavedAttendees)
+        }
     }
 }
 

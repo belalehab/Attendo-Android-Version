@@ -2,6 +2,7 @@
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,6 +39,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.attendo.android.data.local.Student
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +49,7 @@ fun ScannerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var showManualEntry by remember { mutableStateOf(false) }
     var showSessionSummary by remember { mutableStateOf(false) }
 
@@ -56,19 +60,32 @@ fun ScannerScreen(
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
-            if (isGranted) {
-                viewModel.toggleSession()
+            if (isGranted) viewModel.startSession()
+        }
+    )
+
+    // File pickers for export
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf"),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                viewModel.exportSessionAsPdf(context, it)
+                showSessionSummary = false
+            }
+        }
+    )
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv"),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                viewModel.exportSessionAsCsv(context, it)
+                showSessionSummary = false
             }
         }
     )
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
-        // Foreground UI
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             // Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -101,7 +118,6 @@ fun ScannerScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Header inside card
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,7 +148,6 @@ fun ScannerScreen(
                     AnimatedVisibility(visible = !uiState.isSessionActive) {
                         Column {
                             Spacer(modifier = Modifier.height(16.dp))
-                            // Dropdowns and inputs row 1
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 var typeExpanded by remember { mutableStateOf(false) }
                                 val types = listOf("Lecture", "Section")
@@ -224,18 +239,15 @@ fun ScannerScreen(
                         onClick = {
                             if (!uiState.isSessionActive) {
                                 val hasPermission = ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.CAMERA
+                                    context, Manifest.permission.CAMERA
                                 ) == PackageManager.PERMISSION_GRANTED
-                                
-                                if (hasPermission) {
-                                    viewModel.toggleSession()
-                                } else {
-                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
+                                if (hasPermission) viewModel.startSession()
+                                else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             } else {
-                                // STOP SESSION => Show Summary
-                                showSessionSummary = true
+                                coroutineScope.launch {
+                                    viewModel.stopAndSaveSession()
+                                    showSessionSummary = true
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -251,9 +263,9 @@ fun ScannerScreen(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             if (!uiState.isSessionActive) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -276,7 +288,6 @@ fun ScannerScreen(
                     }
                 }
             } else {
-                // Active Counter Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -285,12 +296,7 @@ fun ScannerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "SCANNED ATTENDEES",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
+                    Text("SCANNED ATTENDEES", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Text(
                         text = uiState.attendeeCount.toString(),
                         color = Color(0xFF14B8A6),
@@ -301,7 +307,6 @@ fun ScannerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Active Camera View
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -311,20 +316,12 @@ fun ScannerScreen(
                             val strokeWidth = 8.dp.toPx()
                             val lineLength = 40.dp.toPx()
                             val color = Color.White
-                            
-                            // Top-Left
                             drawLine(color, Offset(0f, 0f), Offset(lineLength, 0f), strokeWidth)
                             drawLine(color, Offset(0f, 0f), Offset(0f, lineLength), strokeWidth)
-                            
-                            // Top-Right
                             drawLine(color, Offset(size.width, 0f), Offset(size.width - lineLength, 0f), strokeWidth)
                             drawLine(color, Offset(size.width, 0f), Offset(size.width, lineLength), strokeWidth)
-                            
-                            // Bottom-Left
                             drawLine(color, Offset(0f, size.height), Offset(lineLength, size.height), strokeWidth)
                             drawLine(color, Offset(0f, size.height), Offset(0f, size.height - lineLength), strokeWidth)
-                            
-                            // Bottom-Right
                             drawLine(color, Offset(size.width, size.height), Offset(size.width - lineLength, size.height), strokeWidth)
                             drawLine(color, Offset(size.width, size.height), Offset(size.width, size.height - lineLength), strokeWidth)
                         }
@@ -345,13 +342,10 @@ fun ScannerScreen(
             }
         }
 
-        // Bottom Controls for Manual Entry when active
+        // Manual Entry button at the bottom while session is active
         if (uiState.isSessionActive) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .align(Alignment.BottomCenter)
+                modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.BottomCenter)
             ) {
                 Button(
                     onClick = { showManualEntry = true },
@@ -382,6 +376,7 @@ fun ScannerScreen(
         }
     }
 
+    // Manual entry dialog
     if (showManualEntry) {
         UnifiedEntryPanelDialog(
             students = uiState.workspaceStudents,
@@ -393,23 +388,19 @@ fun ScannerScreen(
         )
     }
 
+    // Session summary dialog – shown when user presses Stop Session
     if (showSessionSummary) {
         SessionSummaryDialog(
-            attendeeCount = uiState.attendeeCount,
-            onSaveToHistory = {
-                viewModel.saveSessionToHistory()
-                showSessionSummary = false
-            },
+            attendeeCount = viewModel.lastSavedAttendeeCount,
             onExportPdf = {
-                // TODO: Stage 2/3 Export functionality
+                val safeTitle = viewModel.lastSavedSessionTitle.replace("[", "").replace("]", "").replace(" ", "_")
+                pdfLauncher.launch("Attendo_Session_$safeTitle.pdf")
             },
-            onExportExcel = {
-                // TODO: Stage 2/3 Export functionality
+            onExportCsv = {
+                val safeTitle = viewModel.lastSavedSessionTitle.replace("[", "").replace("]", "").replace(" ", "_")
+                csvLauncher.launch("Attendo_Session_$safeTitle.csv")
             },
-            onDiscard = {
-                viewModel.clearSession()
-                showSessionSummary = false
-            }
+            onDismiss = { showSessionSummary = false }
         )
     }
 }
@@ -417,44 +408,53 @@ fun ScannerScreen(
 @Composable
 fun SessionSummaryDialog(
     attendeeCount: Int,
-    onSaveToHistory: () -> Unit,
     onExportPdf: () -> Unit,
-    onExportExcel: () -> Unit,
-    onDiscard: () -> Unit
+    onExportCsv: () -> Unit,
+    onDismiss: () -> Unit
 ) {
     AlertDialog(
-        onDismissRequest = {}, // Force interaction
-        title = { Text("Session Ended", fontWeight = FontWeight.Bold) },
+        onDismissRequest = onDismiss,
+        title = { 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF14B8A6))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Session Auto-Saved", fontWeight = FontWeight.Bold) 
+            }
+        },
         text = {
             Column {
-                Text("You have successfully ended the session.")
+                Text("The session has ended and was automatically saved to history.")
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Total Scanned Attendees: $attendeeCount", fontWeight = FontWeight.Black, color = Color(0xFF14B8A6))
+                Text(
+                    "Total Scanned Attendees: $attendeeCount",
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFF14B8A6)
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Choose an action below to save this data.")
+                Text("You can optionally export the list now, or access it later from the History tab.")
             }
         },
         confirmButton = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = onSaveToHistory, modifier = Modifier.fillMaxWidth()) {
-                    Text("Save to History")
-                }
                 OutlinedButton(onClick = onExportPdf, modifier = Modifier.fillMaxWidth()) {
                     Text("Export as PDF")
                 }
-                OutlinedButton(onClick = onExportExcel, modifier = Modifier.fillMaxWidth()) {
-                    Text("Export as Excel (CSV)")
+                OutlinedButton(onClick = onExportCsv, modifier = Modifier.fillMaxWidth()) {
+                    Text("Export as Excel/CSV")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) {
-                    Text("Discard Session", color = Color.Red)
+                Button(
+                    onClick = onDismiss, 
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14B8A6))
+                ) {
+                    Text("Done", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
-        }
+        },
+        dismissButton = {}
     )
 }
-
-// ... [UnifiedEntryPanelDialog remains untouched below] ...
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -465,11 +465,11 @@ fun UnifiedEntryPanelDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
-    
+
     val filteredStudents = remember(searchQuery, students) {
         if (searchQuery.isBlank()) students
-        else students.filter { 
-            it.name.contains(searchQuery, ignoreCase = true) || 
+        else students.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
             it.nationalId?.contains(searchQuery) == true
         }
     }
@@ -479,19 +479,13 @@ fun UnifiedEntryPanelDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(24.dp)),
+            modifier = Modifier.fillMaxWidth(0.95f).fillMaxHeight(0.9f).clip(RoundedCornerShape(24.dp)),
             color = Color(0xFF1E293B),
             tonalElevation = 8.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -500,7 +494,7 @@ fun UnifiedEntryPanelDialog(
                             text = "Unified Entry Panel",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFF818CF8) // Light Indigo for desktop match
+                            color = Color(0xFF818CF8)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -516,13 +510,12 @@ fun UnifiedEntryPanelDialog(
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
-                // Search Bar
                 Box(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search by name, or paste multiple 14-digit IDs here...", color = Color.Gray, fontSize = 12.sp) },
+                        placeholder = { Text("Search by name or paste 14-digit IDs...", color = Color.Gray, fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -537,11 +530,8 @@ fun UnifiedEntryPanelDialog(
                     )
                 }
 
-                // List
                 LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredStudents) { student ->
@@ -561,18 +551,9 @@ fun UnifiedEntryPanelDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = student.name,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
+                                Text(student.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = student.nationalId ?: "",
-                                    color = Color.Gray,
-                                    fontSize = 12.sp
-                                )
+                                Text(student.nationalId ?: "", color = Color.Gray, fontSize = 12.sp)
                             }
                             Icon(
                                 imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
@@ -585,19 +566,12 @@ fun UnifiedEntryPanelDialog(
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
 
-                // Footer
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Selected: ${selectedIds.size}",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Selected: ${selectedIds.size}", color = Color.White, fontWeight = FontWeight.Bold)
                     Button(
                         onClick = { onSubmitBatch(selectedIds.toList()) },
                         shape = RoundedCornerShape(12.dp),
