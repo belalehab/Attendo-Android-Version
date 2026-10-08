@@ -2,6 +2,8 @@
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.attendo.android.core.SessionConfig
+import com.attendo.android.core.SessionManager
 import com.attendo.android.data.local.Attendance
 import com.attendo.android.data.local.AttendanceDao
 import com.attendo.android.data.local.SettingsDao
@@ -11,9 +13,7 @@ import com.attendo.android.domain.usecase.QRValidator
 import com.attendo.android.utils.HardwareFeedbackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -27,11 +27,25 @@ class ScannerViewModel @Inject constructor(
     private val feedbackManager: HardwareFeedbackManager,
     private val attendanceDao: AttendanceDao,
     private val studentDao: StudentDao,
-    private val settingsDao: SettingsDao
+    private val settingsDao: SettingsDao,
+    val sessionManager: SessionManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
-    val uiState: StateFlow<ScannerUiState> = _uiState
+    
+    val uiState: StateFlow<ScannerUiState> = combine(
+        _uiState,
+        sessionManager.sessionState
+    ) { baseState, session ->
+        baseState.copy(
+            isSessionActive = session.isActive,
+            sessionConfig = session.config,
+            attendeeCount = session.scannedAttendees.size,
+            scannedAttendeesMap = session.scannedAttendees,
+            lastScannedMessage = session.lastMessage,
+            isProcessingScan = session.isProcessing
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScannerUiState())
 
     private var studentsJob: Job? = null
 
@@ -65,24 +79,24 @@ class ScannerViewModel @Inject constructor(
             studentDao.getActiveStudentsByGrade(workspace).collectLatest { students ->
                 _uiState.value = _uiState.value.copy(
                     workspaceStudents = students,
-                    studentCount = students.size
+                    workspaceStudentCount = students.size
                 )
             }
         }
     }
 
     fun updateConfig(modifier: (SessionConfig) -> SessionConfig) {
-        _uiState.value = _uiState.value.copy(sessionConfig = modifier(_uiState.value.sessionConfig))
+        sessionManager.updateConfig(modifier)
     }
 
     fun toggleSession() {
-        val currentlyActive = _uiState.value.isSessionActive
-        _uiState.value = _uiState.value.copy(isSessionActive = !currentlyActive)
+        sessionManager.toggleSession()
     }
 
     fun onQrScanned(payload: String) {
-        if (!_uiState.value.isSessionActive || _uiState.value.isProcessingScan) return
-        _uiState.value = _uiState.value.copy(isProcessingScan = true)
+        val session = sessionManager.sessionState.value
+        if (!session.isActive || session.isProcessing) return
+        sessionManager.setProcessingScan(true)
         
         viewModelScope.launch {
             val result = qrValidator.validatePayload(payload)
@@ -90,15 +104,16 @@ class ScannerViewModel @Inject constructor(
                 processAttendance(result.getOrNull()!!)
             } else {
                 feedbackManager.playErrorFeedback()
-                _uiState.value = _uiState.value.copy(lastScannedMessage = "Error: Invalid QR Code")
+                sessionManager.setLastScannedMessage("Error: Invalid QR Code")
                 resetScanState()
             }
         }
     }
 
     fun onManualEntry(nationalId: String) {
-        if (!_uiState.value.isSessionActive || _uiState.value.isProcessingScan) return
-        _uiState.value = _uiState.value.copy(isProcessingScan = true)
+        val session = sessionManager.sessionState.value
+        if (!session.isActive || session.isProcessing) return
+        sessionManager.setProcessingScan(true)
         
         viewModelScope.launch {
             processAttendance(nationalId)
@@ -106,28 +121,22 @@ class ScannerViewModel @Inject constructor(
     }
     
     fun onBatchSubmit(nationalIds: List<String>) {
-        if (!_uiState.value.isSessionActive) return
+        val session = sessionManager.sessionState.value
+        if (!session.isActive) return
         viewModelScope.launch {
-            val config = _uiState.value.sessionConfig
-            val sessionTitle = "${config.type} - ${config.group} - W${config.week}"
             val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
             
             var addedCount = 0
             for (id in nationalIds) {
                 val student = studentDao.getStudentById(id)
                 if (student != null) {
-                    val attendance = Attendance(
-                        nationalId = id,
-                        sessionName = sessionTitle,
-                        timestamp = timestamp
-                    )
-                    attendanceDao.insertAttendance(attendance)
+                    sessionManager.addAttendee(id, timestamp)
                     addedCount++
                 }
             }
             if (addedCount > 0) {
                 feedbackManager.playSuccessFeedback()
-                _uiState.value = _uiState.value.copy(lastScannedMessage = "Success: Added $ddedCount students")
+                sessionManager.setLastScannedMessage("Success: Added $addedCount students")
             }
             resetScanState()
         }
@@ -135,37 +144,49 @@ class ScannerViewModel @Inject constructor(
 
     private suspend fun processAttendance(nationalId: String) {
         val student = studentDao.getStudentById(nationalId)
-        val config = _uiState.value.sessionConfig
-        val sessionTitle = "${config.type} - ${config.group} - W${config.week}"
         
         if (student != null) {
-            val attendance = Attendance(
-                nationalId = nationalId,
-                sessionName = sessionTitle,
-                timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-            )
-            attendanceDao.insertAttendance(attendance)
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            sessionManager.addAttendee(nationalId, timestamp)
             feedbackManager.playSuccessFeedback()
-            _uiState.value = _uiState.value.copy(lastScannedMessage = "Success: ${student.name}")
+            sessionManager.setLastScannedMessage("Success: ${student.name}")
         } else {
             feedbackManager.playErrorFeedback()
-            _uiState.value = _uiState.value.copy(lastScannedMessage = "Error: Student Not Found")
+            sessionManager.setLastScannedMessage("Error: Student Not Found")
         }
         resetScanState()
     }
 
     private suspend fun resetScanState() {
         kotlinx.coroutines.delay(1500)
-        _uiState.value = _uiState.value.copy(isProcessingScan = false, lastScannedMessage = null)
+        sessionManager.setProcessingScan(false)
+        sessionManager.setLastScannedMessage(null)
+    }
+
+    fun saveSessionToHistory() {
+        viewModelScope.launch {
+            val session = sessionManager.sessionState.value
+            val config = session.config
+            val workspace = _uiState.value.activeWorkspace
+            val sessionTitle = "[$workspace] ${config.type} - ${config.group} - W${config.week}"
+            
+            val attendees = session.scannedAttendees
+            for ((nationalId, timestamp) in attendees) {
+                val attendance = Attendance(
+                    nationalId = nationalId,
+                    sessionName = sessionTitle,
+                    timestamp = timestamp
+                )
+                attendanceDao.insertAttendance(attendance)
+            }
+            sessionManager.clearSession()
+        }
+    }
+    
+    fun clearSession() {
+        sessionManager.clearSession()
     }
 }
-
-data class SessionConfig(
-    val type: String = "Lecture",
-    val group: String = "All Groups",
-    val week: String = "1",
-    val topic: String = ""
-)
 
 data class ScannerUiState(
     val isSessionActive: Boolean = false,
@@ -174,7 +195,9 @@ data class ScannerUiState(
     val subjectName: String = "",
     val activeWorkspace: String = "",
     val workspaceStudents: List<Student> = emptyList(),
-    val studentCount: Int = 0,
+    val workspaceStudentCount: Int = 0,
+    val attendeeCount: Int = 0,
+    val scannedAttendeesMap: Map<String, String> = emptyMap(),
     val isProcessingScan: Boolean = false,
     val lastScannedMessage: String? = null
 )

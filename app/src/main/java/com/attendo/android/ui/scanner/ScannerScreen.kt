@@ -47,6 +47,7 @@ fun ScannerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showManualEntry by remember { mutableStateOf(false) }
+    var showSessionSummary by remember { mutableStateOf(false) }
 
     LaunchedEffect(activeWorkspace) {
         viewModel.loadInstructorAndSubject(activeWorkspace)
@@ -233,7 +234,8 @@ fun ScannerScreen(
                                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                 }
                             } else {
-                                viewModel.toggleSession()
+                                // STOP SESSION => Show Summary
+                                showSessionSummary = true
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -267,13 +269,38 @@ fun ScannerScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = uiState.studentCount.toString(),
+                            text = uiState.workspaceStudentCount.toString(),
                             style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.Black
                         )
                     }
                 }
             } else {
+                // Active Counter Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SCANNED ATTENDEES",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = uiState.attendeeCount.toString(),
+                        color = Color(0xFF14B8A6),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 // Active Camera View
                 Box(
                     modifier = Modifier
@@ -365,7 +392,69 @@ fun ScannerScreen(
             }
         )
     }
+
+    if (showSessionSummary) {
+        SessionSummaryDialog(
+            attendeeCount = uiState.attendeeCount,
+            onSaveToHistory = {
+                viewModel.saveSessionToHistory()
+                showSessionSummary = false
+            },
+            onExportPdf = {
+                // TODO: Stage 2/3 Export functionality
+            },
+            onExportExcel = {
+                // TODO: Stage 2/3 Export functionality
+            },
+            onDiscard = {
+                viewModel.clearSession()
+                showSessionSummary = false
+            }
+        )
+    }
 }
+
+@Composable
+fun SessionSummaryDialog(
+    attendeeCount: Int,
+    onSaveToHistory: () -> Unit,
+    onExportPdf: () -> Unit,
+    onExportExcel: () -> Unit,
+    onDiscard: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {}, // Force interaction
+        title = { Text("Session Ended", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("You have successfully ended the session.")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Total Scanned Attendees: $attendeeCount", fontWeight = FontWeight.Black, color = Color(0xFF14B8A6))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Choose an action below to save this data.")
+            }
+        },
+        confirmButton = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onSaveToHistory, modifier = Modifier.fillMaxWidth()) {
+                    Text("Save to History")
+                }
+                OutlinedButton(onClick = onExportPdf, modifier = Modifier.fillMaxWidth()) {
+                    Text("Export as PDF")
+                }
+                OutlinedButton(onClick = onExportExcel, modifier = Modifier.fillMaxWidth()) {
+                    Text("Export as Excel (CSV)")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) {
+                    Text("Discard Session", color = Color.Red)
+                }
+            }
+        }
+    )
+}
+
+// ... [UnifiedEntryPanelDialog remains untouched below] ...
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -381,7 +470,7 @@ fun UnifiedEntryPanelDialog(
         if (searchQuery.isBlank()) students
         else students.filter { 
             it.name.contains(searchQuery, ignoreCase = true) || 
-            it.nationalId?.contains(searchQuery) == true 
+            it.nationalId?.contains(searchQuery) == true
         }
     }
 
