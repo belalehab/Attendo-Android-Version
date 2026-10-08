@@ -34,20 +34,20 @@ class HistoryViewModel @Inject constructor(
     private val _activeCount = MutableStateFlow(0)
 
     val uiState: StateFlow<HistoryUiState> = combine(
-        _isArchiveView,
-        _activeWorkspace,
-        _sessionSummaries,
-        _selectedSession,
-        _sessionRecords,
-        _activeCount
-    ) { isArchive, workspace, summaries, selected, records, activeCount ->
+        combine(_isArchiveView, _activeWorkspace, _sessionSummaries) { archive, ws, summaries ->
+            Triple(archive, ws, summaries)
+        },
+        combine(_selectedSession, _sessionRecords, _activeCount) { sel, recs, count ->
+            Triple(sel, recs, count)
+        }
+    ) { p1, p2 ->
         HistoryUiState(
-            isArchiveView = isArchive,
-            activeWorkspace = workspace,
-            sessionSummaries = summaries,
-            selectedSession = selected,
-            sessionRecords = records,
-            activeCount = activeCount
+            isArchiveView = p1.first,
+            activeWorkspace = p1.second,
+            sessionSummaries = p1.third,
+            selectedSession = p2.first,
+            sessionRecords = p2.second,
+            activeCount = p2.third
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HistoryUiState())
 

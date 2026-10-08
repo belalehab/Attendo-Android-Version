@@ -37,7 +37,7 @@ class AnalyticsViewModel @Inject constructor(
 
         viewModelScope.launch {
             val studentsFlow = studentDao.getActiveStudentsByGrade(workspace)
-            val attendanceFlow = attendanceDao.getAllAttendanceForGrade(workspace)
+            val attendanceFlow = attendanceDao.getWorkspaceAttendance(workspace)
 
             combine(studentsFlow, attendanceFlow) { students, attendances ->
                 rawStudents = students
