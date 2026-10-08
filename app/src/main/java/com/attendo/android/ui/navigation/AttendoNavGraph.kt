@@ -12,6 +12,7 @@ import com.attendo.android.ui.shell.MainViewModel
 import com.attendo.android.ui.workspace.WorkspaceSelectorScreen
 import com.attendo.android.ui.settings.SettingsScreen
 import com.attendo.android.ui.settings.AboutScreen
+import com.attendo.android.ui.welcome.WelcomeScreen
 
 @Composable
 fun AttendoNavGraph() {
@@ -22,7 +23,12 @@ fun AttendoNavGraph() {
     NavHost(navController = navController, startDestination = "license") {
         composable("license") {
             LicenseScreen(
-                onLicenseValid = { navController.navigate("setup") { popUpTo("license") { inclusive = true } } }
+                onLicenseValid = { navController.navigate("welcome") { popUpTo("license") { inclusive = true } } }
+            )
+        }
+        composable("welcome") {
+            WelcomeScreen(
+                onContinue = { navController.navigate("setup") { popUpTo("welcome") { inclusive = true } } }
             )
         }
         composable("setup") {

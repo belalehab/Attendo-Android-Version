@@ -14,7 +14,7 @@ class JwtValidator @Inject constructor() {
         if (it.size < 32) it + ByteArray(32 - it.size) else it
     })
 
-    fun validateLicense(token: String, expectedHwId: String): Result<Boolean> {
+    fun validateLicense(token: String, expectedHwId: String): Result<String> {
         return try {
             val claims = Jwts.parser()
                 .verifyWith(key)
@@ -23,9 +23,10 @@ class JwtValidator @Inject constructor() {
                 .payload
 
             val hwId = (claims["hwId"] as? String)?.trim()
+            val plan = (claims["plan"] as? String)?.trim() ?: "Pro"
             
             if (hwId == expectedHwId.trim()) {
-                Result.success(true)
+                Result.success(plan)
             } else {
                 Result.failure(Exception("License hardware mismatch. Expected: $expectedHwId, Got: $hwId"))
             }
