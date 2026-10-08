@@ -38,6 +38,9 @@ interface StudentDao {
     
     @Query("SELECT * FROM students WHERE grade = :grade AND is_deleted = 1 ORDER BY name ASC")
     fun getArchivedStudentsByGrade(grade: String): Flow<List<Student>>
+    
+    @Query("SELECT * FROM students WHERE grade = :grade ORDER BY name ASC")
+    fun getAllStudentsByGrade(grade: String): Flow<List<Student>>
 
     @Query("SELECT * FROM students WHERE national_id = :nationalId LIMIT 1")
     suspend fun getStudentById(nationalId: String): Student?
