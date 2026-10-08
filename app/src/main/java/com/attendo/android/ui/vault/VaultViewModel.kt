@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.vault
+package com.attendo.android.ui.vault
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -23,6 +23,8 @@ class VaultViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(VaultUiState())
     val uiState: StateFlow<VaultUiState> = _uiState
 
+    private var pendingImportFile: java.io.File? = null
+
     fun exportDatabase(destinationUri: Uri) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isProcessing = true, statusMessage = null)
@@ -46,6 +48,7 @@ class VaultViewModel @Inject constructor(
                 if (mergeResult.isSuccess) {
                     val summary = mergeResult.getOrNull()!!
                     if (summary.conflicts.isNotEmpty()) {
+                        pendingImportFile = tempFile // Keep for resolution
                         _uiState.value = _uiState.value.copy(
                             isProcessing = false,
                             pendingConflicts = summary.conflicts,
@@ -56,21 +59,49 @@ class VaultViewModel @Inject constructor(
                             isProcessing = false,
                             statusMessage = "Merged Successfully. Inserted ${summary.insertedCount} records."
                         )
+                        tempFile.delete() // Clean up
                     }
                 } else {
                     _uiState.value = _uiState.value.copy(isProcessing = false, statusMessage = "Merge Failed")
+                    tempFile.delete() // Clean up
                 }
-                
-                tempFile.delete() // Clean up
             } else {
                 _uiState.value = _uiState.value.copy(isProcessing = false, statusMessage = "Failed to copy import file")
             }
         }
     }
 
-    fun resolveConflicts(resolutions: List<MergeConflict>) {
-        // In a full implementation, this applies the 'Keep Local' vs 'Overwrite' rules
-        _uiState.value = _uiState.value.copy(pendingConflicts = emptyList(), statusMessage = "Conflicts Resolved")
+    fun resolveConflicts(resolutions: Map<String, String>, activeWorkspace: String) {
+        val tempFile = pendingImportFile ?: return
+        
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isProcessing = true, statusMessage = "Resolving...")
+            
+            val mergeResult = mergeUseCase.mergeDatabase(tempFile, activeWorkspace, resolutions)
+            if (mergeResult.isSuccess) {
+                val summary = mergeResult.getOrNull()!!
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    pendingConflicts = emptyList(),
+                    statusMessage = "Conflicts Resolved. Processed ${summary.insertedCount} records."
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    pendingConflicts = emptyList(),
+                    statusMessage = "Resolution Failed"
+                )
+            }
+            
+            tempFile.delete()
+            pendingImportFile = null
+        }
+    }
+
+    fun cancelMerge() {
+        pendingImportFile?.delete()
+        pendingImportFile = null
+        _uiState.value = _uiState.value.copy(pendingConflicts = emptyList(), statusMessage = "Merge Cancelled")
     }
 
     fun factoryReset() {

@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.shell
+package com.attendo.android.ui.shell
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -35,6 +37,8 @@ fun MainShellScreen(
     val activeWorkspace by mainViewModel.activeWorkspace.collectAsState()
     // searchQuery is no longer needed in the universal shell, Roster handles its own.
     
+    val daysLeftWarning by mainViewModel.daysLeftWarning.collectAsState()
+
     Scaffold(
         topBar = {
             Surface(
@@ -123,7 +127,26 @@ fun MainShellScreen(
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
+        Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            daysLeftWarning?.let { days ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(Color(0x1AF59E0B), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0x33F59E0B), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Default.Warning, contentDescription = "Warning", tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("License Sync Required", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Please connect to the internet soon. Your offline access will expire in $days days.", color = Color(0xCCFDE68A), fontSize = 12.sp)
+                    }
+                }
+            }
+            Box(modifier = Modifier.weight(1f)) {
             NavHost(
                 navController = navController,
                 startDestination = "scanner",
@@ -148,6 +171,7 @@ fun MainShellScreen(
                     VaultScreen(activeWorkspace = activeWorkspace) 
                 }
             }
+        }
         }
     }
 }

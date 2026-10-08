@@ -1,4 +1,4 @@
-﻿package com.attendo.android.utils
+package com.attendo.android.utils
 
 import android.content.Context
 import android.graphics.Color
@@ -106,6 +106,36 @@ object SessionExporter {
                         sb.appendLine("${index + 1},\"${entry.name}\",${entry.nationalId},${entry.timestamp}")
                     }
                     outputStream.write(sb.toString().toByteArray(Charsets.UTF_8))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+    suspend fun exportXlsx(context: Context, uri: Uri, sessionTitle: String, attendees: List<AttendeeEntry>) =
+        withContext(Dispatchers.IO) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    org.dhatim.fastexcel.Workbook(outputStream, "AttendoApp", "1.0").use { wb ->
+                        val ws = wb.newWorksheet("Attendance")
+                        ws.value(0, 0, "Session")
+                        ws.value(0, 1, sessionTitle)
+                        ws.value(1, 0, "Total Attendees")
+                        ws.value(1, 1, attendees.size)
+                        
+                        ws.value(3, 0, "#")
+                        ws.value(3, 1, "Name")
+                        ws.value(3, 2, "National ID")
+                        ws.value(3, 3, "Timestamp")
+                        
+                        attendees.forEachIndexed { index, entry ->
+                            val r = index + 4
+                            ws.value(r, 0, index + 1)
+                            ws.value(r, 1, entry.name)
+                            ws.value(r, 2, entry.nationalId)
+                            ws.value(r, 3, entry.timestamp)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

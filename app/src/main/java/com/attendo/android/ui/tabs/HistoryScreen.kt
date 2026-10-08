@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.tabs
+package com.attendo.android.ui.tabs
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -292,9 +292,9 @@ fun HistoryScreen(
             contract = ActivityResultContracts.CreateDocument("application/pdf"),
             onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsPdf(context, it) } }
         )
-        val csvLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.CreateDocument("text/csv"),
-            onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsCsv(context, it) } }
+        val xlsxLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsXlsx(context, it) } }
         )
 
         val filteredAudit = uiState.auditEntries.filter {
@@ -367,7 +367,7 @@ fun HistoryScreen(
                     Button(
                         onClick = { 
                             val safeTitle = uiState.selectedSession!!.replace("[", "").replace("]", "").replace(" ", "_")
-                            csvLauncher.launch("Attendo_Audit_$safeTitle.csv") 
+                            xlsxLauncher.launch("Attendo_Audit_$safeTitle.xlsx") 
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14B8A6)),
                         shape = RoundedCornerShape(12.dp),

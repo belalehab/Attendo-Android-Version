@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.history
+package com.attendo.android.ui.history
 
 import android.content.Context
 import android.net.Uri
@@ -231,13 +231,13 @@ class HistoryViewModel @Inject constructor(
         }
     }
 
-    fun exportSessionAsCsv(context: Context, uri: Uri) {
+    fun exportSessionAsXlsx(context: Context, uri: Uri) {
         viewModelScope.launch {
             val sessionName = _selectedSession.value ?: return@launch
             val entries = _sessionRecords.value.map { 
                 AttendeeEntry(it.studentName, it.attendance.nationalId ?: "", it.attendance.timestamp ?: "")
             }
-            SessionExporter.exportCsv(context, uri, sessionName, entries)
+            SessionExporter.exportXlsx(context, uri, sessionName, entries)
         }
     }
 

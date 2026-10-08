@@ -1,4 +1,4 @@
-﻿package com.attendo.android.domain.usecase
+package com.attendo.android.domain.usecase
 
 import android.database.sqlite.SQLiteDatabase
 import com.attendo.android.data.local.AppDatabase
@@ -7,6 +7,7 @@ import com.attendo.android.data.local.Student
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,7 +15,11 @@ import javax.inject.Singleton
 class MergeUseCase @Inject constructor(
     private val appDatabase: AppDatabase
 ) {
-    suspend fun mergeDatabase(importedFile: File, activeWorkspace: String): Result<MergeSummary> = withContext(Dispatchers.IO) {
+    suspend fun mergeDatabase(
+        importedFile: File, 
+        activeWorkspace: String, 
+        resolutions: Map<String, String>? = null // key: "$nationalId|$sessionName", value: "LOCAL" or "IMPORTED"
+    ): Result<MergeSummary> = withContext(Dispatchers.IO) {
         try {
             val extDb = SQLiteDatabase.openDatabase(importedFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
             
@@ -60,61 +65,77 @@ class MergeUseCase @Inject constructor(
 
             // 2. Compare and detect conflicts
             val toInsert = mutableListOf<ExtAttendance>()
+            val toUpdate = mutableListOf<ExtAttendance>()
             
             for (ext in extRecords) {
-                val key = "$ext.nationalId|$ext.sessionName"
+                val key = "${ext.nationalId}|${ext.sessionName}"
                 val local = localMap[key]
                 if (local != null) {
                     if (local.isExcused != ext.isExcused || local.bonusPoints != ext.bonusPoints) {
-                        conflicts.add(
-                            MergeConflict(
-                                studentName = ext.studentName,
-                                nationalId = ext.nationalId,
-                                sessionName = ext.sessionName,
-                                localExcused = local.isExcused,
-                                extExcused = ext.isExcused,
-                                localBonus = local.bonusPoints,
-                                extBonus = ext.bonusPoints
+                        val choice = resolutions?.get(key)
+                        if (choice == "IMPORTED") {
+                            toUpdate.add(ext)
+                        } else if (choice == null) { // Unresolved
+                            conflicts.add(
+                                MergeConflict(
+                                    studentName = ext.studentName,
+                                    nationalId = ext.nationalId,
+                                    sessionName = ext.sessionName,
+                                    localExcused = local.isExcused,
+                                    extExcused = ext.isExcused,
+                                    localBonus = local.bonusPoints,
+                                    extBonus = ext.bonusPoints
+                                )
                             )
-                        )
+                        }
                     }
                 } else {
                     toInsert.add(ext)
                 }
             }
 
-            // If no conflicts, commit inserts
+            // If no unresolved conflicts, commit inserts and updates
             if (conflicts.isEmpty()) {
-                // Insert missing students
-                val extStudentsCursor = extDb.rawQuery("SELECT * FROM students WHERE grade = ?", arrayOf(activeWorkspace))
-                while (extStudentsCursor.moveToNext()) {
-                    appDatabase.studentDao().insertStudent(
-                        Student(
-                            name = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("name")),
-                            nationalId = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("national_id")),
-                            grade = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("grade")),
-                            status = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("status")),
-                            isDeleted = extStudentsCursor.getInt(extStudentsCursor.getColumnIndexOrThrow("is_deleted"))
+                appDatabase.withTransaction {
+                    // Insert missing students
+                    val extStudentsCursor = extDb.rawQuery("SELECT * FROM students WHERE grade = ?", arrayOf(activeWorkspace))
+                    while (extStudentsCursor.moveToNext()) {
+                        appDatabase.studentDao().insertStudent(
+                            Student(
+                                name = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("name")),
+                                nationalId = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("national_id")),
+                                grade = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("grade")),
+                                status = extStudentsCursor.getString(extStudentsCursor.getColumnIndexOrThrow("status")),
+                                isDeleted = extStudentsCursor.getInt(extStudentsCursor.getColumnIndexOrThrow("is_deleted"))
+                            )
                         )
-                    )
-                }
-                extStudentsCursor.close()
+                    }
+                    extStudentsCursor.close()
 
-                // Insert missing attendance
-                for (ext in toInsert) {
-                    appDatabase.attendanceDao().insertAttendance(
-                        Attendance(
-                            nationalId = ext.nationalId,
-                            sessionName = ext.sessionName,
-                            timestamp = ext.timestamp,
-                            isExcused = ext.isExcused,
-                            bonusPoints = ext.bonusPoints,
-                            isArchived = ext.isArchived,
-                            excuseReason = ext.excuseReason,
-                            auditTrail = ext.auditTrail
+                    // Insert missing attendance
+                    for (ext in toInsert) {
+                        appDatabase.attendanceDao().insertAttendance(
+                            Attendance(
+                                nationalId = ext.nationalId,
+                                sessionName = ext.sessionName,
+                                timestamp = ext.timestamp,
+                                isExcused = ext.isExcused,
+                                bonusPoints = ext.bonusPoints,
+                                isArchived = ext.isArchived,
+                                excuseReason = ext.excuseReason,
+                                auditTrail = ext.auditTrail
+                            )
                         )
-                    )
-                    insertedCount++
+                        insertedCount++
+                    }
+
+                    // Update resolved attendance
+                    for (ext in toUpdate) {
+                        val attendanceDao = appDatabase.attendanceDao()
+                        appDatabase.query("UPDATE attendance SET is_excused = ?, bonus_points = ? WHERE national_id = ? AND session_name = ?", 
+                            arrayOf(ext.isExcused, ext.bonusPoints, ext.nationalId, ext.sessionName))
+                        insertedCount++
+                    }
                 }
             }
 

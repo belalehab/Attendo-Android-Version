@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
@@ -108,7 +108,7 @@ dependencies {
 
     // Apache POI for Excel export
     // implementation("org.apache.poi:poi:5.2.3")
-    // implementation("org.apache.poi:poi-ooxml:5.2.3")
+    implementation("org.dhatim:fastexcel:0.17.0")
 }
 
 

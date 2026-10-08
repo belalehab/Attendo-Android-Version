@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.scanner
+package com.attendo.android.ui.scanner
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
@@ -74,11 +75,11 @@ fun ScannerScreen(
             }
         }
     )
-    val csvLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv"),
+    val xlsxLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         onResult = { uri: Uri? ->
             uri?.let {
-                viewModel.exportSessionAsCsv(context, it)
+                viewModel.exportSessionAsXlsx(context, it)
                 showSessionSummary = false
             }
         }
@@ -342,19 +343,37 @@ fun ScannerScreen(
             }
         }
 
-        // Manual Entry button at the bottom while session is active
+        // Bottom actions while session is active
         if (uiState.isSessionActive) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.BottomCenter)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp).align(Alignment.BottomCenter),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
                     onClick = { showManualEntry = true },
-                    modifier = Modifier.align(Alignment.Center),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Text("Manual Entry", color = Color(0xFF14B8A6), fontWeight = FontWeight.Bold)
                 }
+                
+                if (uiState.scannedAttendeesMap.isNotEmpty()) {
+                    Button(
+                        onClick = { viewModel.triggerColdCall() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5).copy(alpha = 0.2f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Text("Random Call", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        uiState.coldCallStudentId?.let { id ->
+            val student = uiState.workspaceStudents.find { it.nationalId == id }
+            if (student != null) {
+                ColdCallDialog(student = student, onDismiss = { viewModel.dismissColdCall() })
             }
         }
 
@@ -384,6 +403,10 @@ fun ScannerScreen(
             onSubmitBatch = { ids ->
                 viewModel.onBatchSubmit(ids)
                 showManualEntry = false
+            },
+            onExcuseBatch = { ids ->
+                viewModel.onBatchExcuse(ids, "Other")
+                showManualEntry = false
             }
         )
     }
@@ -398,7 +421,7 @@ fun ScannerScreen(
             },
             onExportCsv = {
                 val safeTitle = viewModel.lastSavedSessionTitle.replace("[", "").replace("]", "").replace(" ", "_")
-                csvLauncher.launch("Attendo_Session_$safeTitle.csv")
+                xlsxLauncher.launch("Attendo_Session_$safeTitle.xlsx")
             },
             onDismiss = { showSessionSummary = false }
         )
@@ -440,7 +463,7 @@ fun SessionSummaryDialog(
                     Text("Export as PDF")
                 }
                 OutlinedButton(onClick = onExportCsv, modifier = Modifier.fillMaxWidth()) {
-                    Text("Export as Excel/CSV")
+                    Text("Export as Excel")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
@@ -461,7 +484,8 @@ fun SessionSummaryDialog(
 fun UnifiedEntryPanelDialog(
     students: List<Student>,
     onDismiss: () -> Unit,
-    onSubmitBatch: (List<String>) -> Unit
+    onSubmitBatch: (List<String>) -> Unit,
+    onExcuseBatch: (List<String>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -572,16 +596,70 @@ fun UnifiedEntryPanelDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Selected: ${selectedIds.size}", color = Color.White, fontWeight = FontWeight.Bold)
-                    Button(
-                        onClick = { onSubmitBatch(selectedIds.toList()) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
-                        enabled = selectedIds.isNotEmpty()
-                    ) {
-                        Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Submit Batch", fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { onExcuseBatch(selectedIds.toList()) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1).copy(alpha = 0.2f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6366F1)),
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Text("Excuse", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { onSubmitBatch(selectedIds.toList()) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Present", fontWeight = FontWeight.Bold)
+                        }
                     }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun ColdCallDialog(student: com.attendo.android.data.local.Student, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            color = Color(0xFF0F172A),
+            border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF4F46E5).copy(alpha = 0.5f))
+        ) {
+            Column(
+                modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.background(Color(0xFF4F46E5).copy(alpha = 0.2f), androidx.compose.foundation.shape.CircleShape).padding(16.dp)
+                ) {
+                    Icon(androidx.compose.material.icons.Icons.Default.Person, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(48.dp))
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("RANDOM CALL", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(student.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = student.nationalId ?: "",
+                    color = Color(0xFF818CF8),
+                    fontSize = 14.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.background(Color(0xFF4F46E5).copy(alpha = 0.1f), androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                ) {
+                    Text("Dismiss", color = Color.White)
                 }
             }
         }

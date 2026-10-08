@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.scanner
+package com.attendo.android.ui.scanner
 
 import android.content.Context
 import android.net.Uri
@@ -175,6 +175,35 @@ class ScannerViewModel @Inject constructor(
         }
     }
 
+    fun onBatchExcuse(nationalIds: List<String>, reason: String) {
+        val session = sessionManager.sessionState.value
+        if (!session.isActive) return
+        val sessionTitle = "[${_uiState.value.activeWorkspace}] ${session.config.type} - ${session.config.group} - W${session.config.week}"
+        viewModelScope.launch {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+            var excusedCount = 0
+            for (id in nationalIds) {
+                val student = studentDao.getStudentById(id)
+                if (student != null) {
+                    val attendance = com.attendo.android.data.local.Attendance(
+                        nationalId = id,
+                        sessionName = sessionTitle,
+                        timestamp = timestamp,
+                        isExcused = 1,
+                        excuseReason = reason
+                    )
+                    attendanceDao.insertAttendance(attendance)
+                    excusedCount++
+                }
+            }
+            if (excusedCount > 0) {
+                feedbackManager.playSuccessFeedback()
+                sessionManager.setLastScannedMessage("Success: Excused $excusedCount students")
+            }
+            resetScanState()
+        }
+    }
+
     private suspend fun processAttendance(nationalId: String) {
         val student = studentDao.getStudentById(nationalId)
         if (student != null) {
@@ -195,15 +224,31 @@ class ScannerViewModel @Inject constructor(
         sessionManager.setLastScannedMessage(null)
     }
 
+    fun triggerColdCall() {
+        val session = sessionManager.sessionState.value
+        if (!session.isActive) return
+        
+        val attendees = session.scannedAttendees.keys.toList()
+        if (attendees.isNotEmpty()) {
+            val randomId = attendees.random()
+            _uiState.value = _uiState.value.copy(coldCallStudentId = randomId)
+            feedbackManager.playSuccessFeedback()
+        }
+    }
+
+    fun dismissColdCall() {
+        _uiState.value = _uiState.value.copy(coldCallStudentId = null)
+    }
+
     fun exportSessionAsPdf(context: Context, uri: Uri) {
         viewModelScope.launch {
             SessionExporter.exportPdf(context, uri, lastSavedSessionTitle, lastSavedAttendees)
         }
     }
 
-    fun exportSessionAsCsv(context: Context, uri: Uri) {
+    fun exportSessionAsXlsx(context: Context, uri: Uri) {
         viewModelScope.launch {
-            SessionExporter.exportCsv(context, uri, lastSavedSessionTitle, lastSavedAttendees)
+            SessionExporter.exportXlsx(context, uri, lastSavedSessionTitle, lastSavedAttendees)
         }
     }
 }
@@ -219,5 +264,6 @@ data class ScannerUiState(
     val attendeeCount: Int = 0,
     val scannedAttendeesMap: Map<String, String> = emptyMap(),
     val isProcessingScan: Boolean = false,
-    val lastScannedMessage: String? = null
+    val lastScannedMessage: String? = null,
+    val coldCallStudentId: String? = null
 )

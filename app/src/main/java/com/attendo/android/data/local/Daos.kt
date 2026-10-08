@@ -1,4 +1,4 @@
-﻿package com.attendo.android.data.local
+package com.attendo.android.data.local
 
 import androidx.room.Dao
 import androidx.room.Delete
@@ -98,6 +98,17 @@ interface AttendanceDao {
         WHERE s.grade = :workspace
     """)
     fun getWorkspaceAttendance(workspace: String): Flow<List<Attendance>>
+
+    @Query("""
+        SELECT a.* 
+        FROM attendance a
+        WHERE a.national_id = :nationalId AND a.session_name LIKE :workspacePrefix
+        ORDER BY a.timestamp DESC
+    """)
+    suspend fun getStudentAttendanceList(nationalId: String, workspacePrefix: String): List<Attendance>
+
+    @Query("SELECT DISTINCT session_name FROM attendance WHERE session_name LIKE :workspacePrefix AND is_archived = 0 ORDER BY timestamp DESC")
+    suspend fun getActiveSessionsList(workspacePrefix: String): List<String>
 }
 
 @Dao

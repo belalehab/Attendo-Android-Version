@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.tabs
+package com.attendo.android.ui.tabs
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,6 +8,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -48,6 +50,7 @@ fun RosterScreen(
     viewModel: RosterViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val studentProfile by viewModel.studentProfile.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingStudent by remember { mutableStateOf<Student?>(null) }
     var archivingStudent by remember { mutableStateOf<Student?>(null) }
@@ -281,6 +284,17 @@ fun RosterScreen(
                                     selectedStudentIds + student.id
                                 }
                             },
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedStudentIds = if (isSelected) {
+                                        selectedStudentIds - student.id
+                                    } else {
+                                        selectedStudentIds + student.id
+                                    }
+                                } else {
+                                    viewModel.openStudentProfile(student)
+                                }
+                            },
                             onEdit = { editingStudent = student },
                             onSwipeLeftAction = { 
                                 if (uiState.isArchiveView) {
@@ -301,6 +315,13 @@ fun RosterScreen(
                 }
             }
         }
+    }
+
+    studentProfile?.let { profile ->
+        StudentProfileDialog(
+            profile = profile,
+            onDismiss = { viewModel.clearStudentProfile() }
+        )
     }
 
     if (showAddDialog) {
@@ -383,6 +404,7 @@ fun StudentCard(
     isSelectionMode: Boolean,
     isArchiveView: Boolean,
     onToggleSelection: () -> Unit,
+    onClick: () -> Unit,
     onEdit: () -> Unit,
     onSwipeLeftAction: () -> Unit,
     onSwipeRightAction: () -> Unit
@@ -439,7 +461,7 @@ fun StudentCard(
                 .fillMaxWidth()
                 .combinedClickable(
                     onLongClick = { onToggleSelection() },
-                    onClick = { if (isSelectionMode) onToggleSelection() }
+                    onClick = { onClick() }
                 ),
             color = if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A),
             shape = RoundedCornerShape(12.dp),
@@ -472,6 +494,188 @@ fun StudentCard(
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun StudentProfileDialog(
+    profile: com.attendo.android.ui.roster.StudentProfileData,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f).clip(RoundedCornerShape(24.dp)),
+            color = Color(0xFF0F172A), // Slate 900
+            tonalElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(Color(0xFF1E293B)).padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = profile.student.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF14B8A6) // Teal 400
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = profile.student.nationalId ?: "No ID",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                // Stats Cards
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatCard(title = "ATTENDED", value = profile.attendedCount, color = Color(0xFF14B8A6), bonus = profile.bonusPoints, modifier = Modifier.weight(1f))
+                    StatCard(title = "EXCUSED", value = profile.excusedCount, color = Color(0xFF818CF8), bonus = 0, modifier = Modifier.weight(1f))
+                    StatCard(title = "ABSENT", value = profile.absentCount, color = Color(0xFFFB7185), bonus = 0, modifier = Modifier.weight(1f))
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                var selectedTab by remember { mutableStateOf("ATTENDED") }
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { selectedTab = "ATTENDED" },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedTab == "ATTENDED") Color(0xFF14B8A6).copy(alpha = 0.2f) else Color.Transparent,
+                            contentColor = if (selectedTab == "ATTENDED") Color(0xFF14B8A6) else Color.Gray
+                        ),
+                        border = BorderStroke(1.dp, if (selectedTab == "ATTENDED") Color(0xFF14B8A6).copy(alpha = 0.5f) else Color.Transparent),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("ATTENDED / EXC", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { selectedTab = "ABSENT" },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedTab == "ABSENT") Color(0xFFFB7185).copy(alpha = 0.2f) else Color.Transparent,
+                            contentColor = if (selectedTab == "ABSENT") Color(0xFFFB7185) else Color.Gray
+                        ),
+                        border = BorderStroke(1.dp, if (selectedTab == "ABSENT") Color(0xFFFB7185).copy(alpha = 0.5f) else Color.Transparent),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("ABSENT", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Timeline List
+                LazyColumn(
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val filteredTimeline = if (selectedTab == "ATTENDED") {
+                        profile.timeline.filter { it.status == "ATTENDED" || it.status == "EXCUSED" }
+                    } else {
+                        profile.timeline.filter { it.status == "ABSENT" }
+                    }
+
+                    if (filteredTimeline.isEmpty()) {
+                        item {
+                            Text(
+                                "No active records found for this filter.",
+                                color = Color.Gray,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                fontSize = 14.sp,
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    } else {
+                        items(filteredTimeline) { record ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = record.sessionName,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = record.timestamp ?: "Unknown Date",
+                                        color = Color.Gray,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                val statusColor = when (record.status) {
+                                    "ATTENDED" -> Color(0xFF14B8A6)
+                                    "EXCUSED" -> Color(0xFF818CF8)
+                                    else -> Color(0xFFFB7185)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(statusColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, statusColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = record.status,
+                                        color = statusColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatCard(title: String, value: Int, color: Color, bonus: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, letterSpacing = 1.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(value.toString(), fontSize = 24.sp, fontWeight = FontWeight.Black, color = color)
+        }
+        if (bonus > 0) {
+            Text(
+                "+${bonus} XP",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                color = Color(0xFFFBBF24),
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp)
+            )
         }
     }
 }
