@@ -33,6 +33,9 @@ fun AttendoNavGraph() {
                 onWorkspaceSelected = { workspace ->
                     mainViewModel.setWorkspace(workspace)
                     navController.navigate("main_shell") { popUpTo("workspace_selector") { inclusive = true } }
+                },
+                onEditSetup = {
+                    navController.navigate("setup")
                 }
             )
         }
