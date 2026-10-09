@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.setup
+package com.attendo.android.ui.setup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +18,52 @@ class SetupViewModel @Inject constructor(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState: StateFlow<SetupUiState> = _uiState
+
+    init {
+        viewModelScope.launch {
+            val instructorName = settingsDao.getSetting("instructor_name") ?: ""
+            val semester = settingsDao.getSetting("semester") ?: "First Semester"
+            val maxGroups = settingsDao.getSetting("total_groups")?.toIntOrNull() ?: 5
+            val university = settingsDao.getSetting("university_name") ?: ""
+            val faculty = settingsDao.getSetting("faculty_name") ?: ""
+            val startDate = settingsDao.getSetting("semester_start") ?: ""
+            val endDate = settingsDao.getSetting("semester_end") ?: ""
+            
+            val gradesStr = settingsDao.getSetting("grades") ?: "[]"
+            val subjectsStr = settingsDao.getSetting("subject_name") ?: "{}"
+            
+            val grades = mutableSetOf<String>()
+            val subjects = mutableMapOf<String, String>()
+            
+            try {
+                val gradesJson = JSONArray(gradesStr)
+                for (i in 0 until gradesJson.length()) {
+                    grades.add(gradesJson.getString(i))
+                }
+                
+                val subjectsJson = JSONObject(subjectsStr)
+                val keys = subjectsJson.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    subjects[key] = subjectsJson.getString(key)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            _uiState.value = _uiState.value.copy(
+                instructorName = instructorName,
+                semester = semester,
+                maxGroups = maxGroups,
+                university = university,
+                faculty = faculty,
+                startDate = startDate,
+                endDate = endDate,
+                grades = grades,
+                subjects = subjects
+            )
+        }
+    }
 
     fun updateField(modifier: (SetupUiState) -> SetupUiState) {
         _uiState.value = modifier(_uiState.value)
