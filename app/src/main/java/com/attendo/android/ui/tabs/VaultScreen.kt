@@ -3,34 +3,44 @@ package com.attendo.android.ui.tabs
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.attendo.android.ui.vault.VaultViewModel
 
 @Composable
 fun VaultScreen(
-    activeWorkspace: String?, // Needs to be passed down in MainShell
+    activeWorkspace: String?,
     viewModel: VaultViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showResetDialog by remember { mutableStateOf(false) }
+    var resetConfirmText by remember { mutableStateOf("") }
+    val scrollState = rememberScrollState()
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -44,100 +54,253 @@ fun VaultScreen(
 
     LaunchedEffect(uiState.statusMessage) {
         if (uiState.statusMessage != null) {
-            // Usually trigger a snackbar here
             kotlinx.coroutines.delay(3000)
             viewModel.clearMessage()
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("The Vault", style = MaterialTheme.typography.headlineMedium)
-            
-            // Backup Card
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Database Backup", style = MaterialTheme.typography.titleMedium)
-                    Text("Export an exact .attdb copy compatible with the desktop application.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { exportLauncher.launch("backup_${activeWorkspace ?: "app"}.attdb") }) {
-                        Text("Export .attdb")
-                    }
-                }
+            // Header
+            Column {
+                Text(
+                    text = "System Vault",
+                    color = Color(0xFF14B8A6),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Manage local backups, merge records, and reset for a new academic year.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp
+                )
             }
 
-            // Import/Merge Card
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Import & Merge", style = MaterialTheme.typography.titleMedium)
-                    Text("Merge a colleague's backup. Conflicts will be flagged.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                        Text("Import Backup")
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(4.dp))
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Danger Zone
+            // Card 1: Manual Export
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f))
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Danger Zone", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleMedium)
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            tint = Color(0xFF14B8A6),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Manual Export",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Compress and save a hard copy of the database to your local machine.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
                     OutlinedButton(
-                        onClick = { showResetDialog = true },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        onClick = { exportLauncher.launch("backup_${activeWorkspace ?: "app"}.attdb") },
+                        enabled = !uiState.isProcessing,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.05f),
+                            contentColor = Color.White
+                        )
                     ) {
-                        Text("Factory Reset Database")
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Export .attdb", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
+
+            // Card 2: Merge Records
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = Color(0xFF818CF8),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Merge Records",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Import a backup file from another machine to combine attendance data.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    OutlinedButton(
+                        onClick = { importLauncher.launch(arrayOf("*/*")) },
+                        enabled = !uiState.isProcessing,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.35f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF6366F1).copy(alpha = 0.12f),
+                            contentColor = Color(0xFF818CF8)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Upload,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Color(0xFF818CF8)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Import & Merge", fontWeight = FontWeight.Bold, color = Color(0xFF818CF8))
+                    }
+                }
+            }
+
+            // Card 3: Danger Zone
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                border = BorderStroke(1.dp, Color(0xFFF43F5E).copy(alpha = 0.3f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFF43F5E),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Danger Zone",
+                            color = Color(0xFFF43F5E),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Start a brand new academic year. This permanently wipes all students and attendance records but keeps your environment setup.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = resetConfirmText,
+                            onValueChange = { resetConfirmText = it.uppercase() },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            placeholder = {
+                                Text(
+                                    "TYPE 'RESET' TO CONFIRM",
+                                    color = Color(0xFFF43F5E).copy(alpha = 0.45f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.sp
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.6f),
+                                unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.6f),
+                                focusedTextColor = Color(0xFFF43F5E),
+                                unfocusedTextColor = Color(0xFFF43F5E),
+                                focusedIndicatorColor = Color(0xFFF43F5E).copy(alpha = 0.6f),
+                                unfocusedIndicatorColor = Color(0xFFF43F5E).copy(alpha = 0.3f)
+                            ),
+                            textStyle = TextStyle(
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp,
+                                fontSize = 13.sp
+                            )
+                        )
+
+                        Button(
+                            onClick = {
+                                if (resetConfirmText == "RESET") {
+                                    viewModel.factoryReset()
+                                    resetConfirmText = ""
+                                }
+                            },
+                            enabled = resetConfirmText == "RESET" && !uiState.isProcessing,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFF43F5E),
+                                disabledContainerColor = Color(0xFFF43F5E).copy(alpha = 0.2f),
+                                contentColor = Color.White,
+                                disabledContentColor = Color.White.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Factory Reset", fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         if (uiState.isProcessing) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFF14B8A6))
         }
 
         if (uiState.statusMessage != null) {
             Snackbar(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+                containerColor = Color(0xFF1E293B),
+                contentColor = Color.White
             ) {
                 Text(uiState.statusMessage!!)
             }
         }
-    }
-
-    if (showResetDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDialog = false },
-            title = { Text("Factory Reset") },
-            text = { Text("Are you sure? This will permanently delete all students and attendance records.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.factoryReset()
-                        showResetDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("RESET")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetDialog = false }) { Text("Cancel") }
-            }
-        )
     }
 
     if (uiState.pendingConflicts.isNotEmpty()) {
