@@ -421,33 +421,57 @@ fun StudentAnalyticsCard(stat: StudentStats) {
             // Student
             Text(stat.studentName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Recent Trend
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    stat.recentTrend.forEach { attended ->
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 2.dp)
-                                .size(8.dp)
-                                .background(if (attended) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
-                        )
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Sparkline: 10 historical logical weeks (A-03)
+                Row(
+                    modifier = Modifier.height(14.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     if (stat.recentTrend.isEmpty()) {
-                        Text("-", color = Color.Gray)
+                        Text("-", color = Color.Gray, fontSize = 11.sp)
+                    } else {
+                        stat.recentTrend.forEach { status ->
+                            val (color, heightDp) = when (status) {
+                                "present" -> Pair(Color(0xFF14B8A6), 14.dp) // Teal
+                                "bonus" -> Pair(Color(0xFFF59E0B), 14.dp)   // Amber
+                                "excused" -> Pair(Color(0xFF818CF8), 9.dp)  // Indigo
+                                else -> Pair(Color(0xFFEF4444), 5.dp)        // Red
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(heightDp)
+                                    .background(color, RoundedCornerShape(1.dp))
+                            )
+                        }
                     }
                 }
                 
                 Text("  |  ", color = Color.Gray, fontSize = 12.sp)
                 
-                // Attended
-                Text("${stat.attendedCount}", color = Color(0xFF14B8A6), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                // Attended count with optional Bonus points (A-04)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${stat.attendedCount}", color = Color(0xFF14B8A6), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    if (stat.bonusPoints > 0) {
+                        Text(" (+${stat.bonusPoints})", color = Color(0xFFF59E0B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 
                 Text("  |  ", color = Color.Gray, fontSize = 12.sp)
                 
-                // Absent
-                Text("${stat.absentCount}", color = Color(0xFFEF4444), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                // Absent count with optional Excused count (A-02)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${stat.absentCount}", color = Color(0xFFEF4444), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    if (stat.excusedCount > 0) {
+                        Text(" (${stat.excusedCount} Exc)", color = Color(0xFF818CF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 
                 Text("  |  ", color = Color.Gray, fontSize = 12.sp)
                 

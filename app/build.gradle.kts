@@ -109,6 +109,8 @@ dependencies {
     // Apache POI for Excel export
     // implementation("org.apache.poi:poi:5.2.3")
     implementation("org.dhatim:fastexcel:0.17.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
 
 

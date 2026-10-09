@@ -45,9 +45,10 @@ data class StudentStats(
     val nationalId: String,
     val attendedCount: Int,
     val absentCount: Int,
+    val excusedCount: Int,
     val bonusPoints: Int,
     val isAtRisk: Boolean,
-    val recentTrend: List<Boolean> // Last 3 sessions: true = attended, false = absent
+    val recentTrend: List<String> // Last 10 logical weeks: "present", "excused", "bonus", "absent"
 )
 
 @HiltViewModel
@@ -77,9 +78,6 @@ class AnalyticsViewModel @Inject constructor(
         viewModelScope.launch {
             val studentsFlow = studentDao.getActiveStudentsByGrade(workspace)
             val attendanceFlow = attendanceDao.getWorkspaceAttendance(workspace)
-            
-            // Get semester dates
-            val currentWeekIndex = 0
 
             combine(
                 studentsFlow, 
@@ -88,75 +86,16 @@ class AnalyticsViewModel @Inject constructor(
                 _searchQuery, 
                 _sessionTypeFilter
             ) { students, attendances, threshold, query, typeFilter ->
-                
-                val filteredAttendances = if (typeFilter == "All Sessions") {
-                    attendances
-                } else {
-                    attendances.filter { it.sessionName?.contains(typeFilter, ignoreCase = true) == true }
-                }
-
                 rawStudents = students
-                rawAttendance = filteredAttendances
-                
-                val attendanceByStudent = filteredAttendances.groupBy { it.nationalId }
-                
-                // Sessions chronologically
-                val uniqueSessions = filteredAttendances.mapNotNull { it.sessionName }.distinct().sorted()
-                val totalSessions = uniqueSessions.size
-                
-                // Real past weeks count instead of semester calendar
-                val totalWeeks = if (totalSessions > 0) totalSessions else 1
+                rawAttendance = attendances
 
-                // Calculate Trend
-                val turnoutTrend = uniqueSessions.mapIndexed { index, sessionName ->
-                    val turnout = filteredAttendances.count { it.sessionName == sessionName }
-                    val weekLabel = sessionName.substringAfterLast(" - ", "W${index + 1}")
-                    SessionTurnout(sessionIndex = index, turnout = turnout, label = weekLabel)
-                }
-                
-                val avgTurnout = if (totalSessions > 0) turnoutTrend.sumOf { it.turnout } / totalSessions else 0
-
-                val last3Sessions = uniqueSessions.takeLast(3)
-
-                val stats = students.filter { 
-                    it.name.contains(query, ignoreCase = true) || (it.nationalId?.contains(query) == true) 
-                }.map { student ->
-                    val records = attendanceByStudent[student.nationalId] ?: emptyList()
-                    val attendedCount = records.size
-                    val absentCount = totalSessions - attendedCount
-                    
-                    val isAtRisk = absentCount >= threshold
-
-                    val recentTrend = last3Sessions.map { sessionName ->
-                        records.any { it.sessionName == sessionName }
-                    }
-
-                    StudentStats(
-                        studentName = student.name,
-                        nationalId = student.nationalId ?: "",
-                        attendedCount = attendedCount,
-                        absentCount = absentCount,
-                        bonusPoints = records.sumOf { it.bonusPoints ?: 0 },
-                        isAtRisk = isAtRisk,
-                        recentTrend = recentTrend
-                    )
-                }.sortedByDescending { it.isAtRisk }
-
-                val totalAtRisk = stats.count { it.isAtRisk }
-                val totalSafe = stats.size - totalAtRisk
-
-                AnalyticsUiState(
-                    stats = stats,
-                    totalSessions = totalSessions,
-                    totalAtRisk = totalAtRisk,
-                    totalSafe = totalSafe,
-                    avgTurnout = avgTurnout,
-                    totalWeeks = totalWeeks,
-                    currentWeekIndex = currentWeekIndex,
-                    turnoutTrend = turnoutTrend,
+                AnalyticsCalculator.calculate(
+                    students = students,
+                    attendances = attendances,
                     threshold = threshold,
                     searchQuery = query,
-                    sessionTypeFilter = typeFilter
+                    sessionTypeFilter = typeFilter,
+                    workspace = workspace
                 )
             }.collect { newState ->
                 _uiState.value = newState
