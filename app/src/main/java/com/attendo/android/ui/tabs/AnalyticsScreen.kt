@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.tabs
+package com.attendo.android.ui.tabs
 
 import android.graphics.Paint
 import android.net.Uri
@@ -76,9 +76,7 @@ fun AnalyticsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-                .background(Color(0xFF1E293B), RoundedCornerShape(24.dp))
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Header
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
@@ -166,8 +164,8 @@ fun AnalyticsScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF0F172A),
-                        unfocusedContainerColor = Color(0xFF0F172A),
+                        focusedContainerColor = Color(0xFF1E293B),
+                        unfocusedContainerColor = Color(0xFF1E293B),
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedIndicatorColor = Color.Transparent,
@@ -175,7 +173,7 @@ fun AnalyticsScreen(
                     )
                 )
 
-                Box(modifier = Modifier.height(50.dp).background(Color(0xFF0F172A), RoundedCornerShape(12.dp))) {
+                Box(modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
                     Row(
                         modifier = Modifier.fillMaxHeight().clickable { typeExpanded = true }.padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -191,7 +189,7 @@ fun AnalyticsScreen(
                 }
                 
                 Row(
-                    modifier = Modifier.height(50.dp).background(Color(0xFF0F172A), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp),
+                    modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("THRESHOLD: ", color = Color.Gray, fontSize = 10.sp)
@@ -237,7 +235,7 @@ fun LineChartCard(trend: List<com.attendo.android.ui.analytics.SessionTurnout>) 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A), RoundedCornerShape(16.dp))
+            .background(Color(0xFF1E293B), RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -318,7 +316,7 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A), RoundedCornerShape(16.dp))
+            .background(Color(0xFF1E293B), RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -409,7 +407,7 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
 fun StudentAnalyticsCard(stat: StudentStats) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF0F172A),
+        color = Color(0xFF1E293B),
         shape = RoundedCornerShape(12.dp),
         border = if (stat.isAtRisk) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF991B1B).copy(alpha = 0.5f)) else null
     ) {

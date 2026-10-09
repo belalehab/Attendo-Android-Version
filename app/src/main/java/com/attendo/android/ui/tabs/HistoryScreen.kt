@@ -74,9 +74,7 @@ fun HistoryScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
-                    .background(Color(0xFF1E293B), RoundedCornerShape(24.dp))
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 // Header
                 Row(
@@ -166,8 +164,8 @@ fun HistoryScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF0F172A),
-                            unfocusedContainerColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color(0xFF1E293B),
+                            unfocusedContainerColor = Color(0xFF1E293B),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
                             focusedIndicatorColor = Color.Transparent,
@@ -178,7 +176,7 @@ fun HistoryScreen(
                     Row(
                         modifier = Modifier
                             .height(50.dp)
-                            .background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
                             .clickable {
                                 if (selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()) {
                                     selectedSessionNames = emptySet()
@@ -199,7 +197,7 @@ fun HistoryScreen(
                         Text("SELECT ALL", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
 
-                    Box(modifier = Modifier.height(50.dp).background(Color(0xFF0F172A), RoundedCornerShape(12.dp))) {
+                    Box(modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
                         Row(
                             modifier = Modifier.fillMaxHeight().clickable { typeExpanded = true }.padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -306,9 +304,7 @@ fun HistoryScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
-                    .background(Color(0xFF1E293B), RoundedCornerShape(24.dp))
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 // Header
                 Row(
@@ -317,7 +313,7 @@ fun HistoryScreen(
                 ) {
                     IconButton(
                         onClick = { viewModel.selectSession(null) },
-                        modifier = Modifier.background(Color(0xFF0F172A), RoundedCornerShape(12.dp))
+                        modifier = Modifier.background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
@@ -345,8 +341,8 @@ fun HistoryScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF0F172A),
-                            unfocusedContainerColor = Color(0xFF0F172A),
+                            focusedContainerColor = Color(0xFF1E293B),
+                            unfocusedContainerColor = Color(0xFF1E293B),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
                             focusedIndicatorColor = Color.Transparent,
@@ -470,7 +466,7 @@ fun SessionCard(
                     onLongClick = { onToggleSelection() },
                     onClick = { if (isSelectionMode) onToggleSelection() }
                 ),
-            color = if (isSelected) Color(0xFF334155) else Color(0xFF0F172A),
+            color = if (isSelected) Color(0xFF334155) else Color(0xFF1E293B),
             shape = RoundedCornerShape(12.dp),
             border = if (isSelected) BorderStroke(1.dp, Color(0xFF14B8A6)) else null
         ) {
@@ -523,7 +519,7 @@ fun AuditEntryCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF0F172A),
+        color = Color(0xFF1E293B),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(

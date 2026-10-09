@@ -102,9 +102,7 @@ fun RosterScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-                .background(Color(0xFF1E293B), RoundedCornerShape(24.dp))
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Header
             Row(
@@ -463,7 +461,7 @@ fun StudentCard(
                     onLongClick = { onToggleSelection() },
                     onClick = { onClick() }
                 ),
-            color = if (isSelected) Color(0xFF1E293B) else Color(0xFF0F172A),
+            color = if (isSelected) Color(0xFF334155) else Color(0xFF1E293B),
             shape = RoundedCornerShape(12.dp),
             border = if (isSelected) BorderStroke(1.dp, Color(0xFF14B8A6)) else null
         ) {
