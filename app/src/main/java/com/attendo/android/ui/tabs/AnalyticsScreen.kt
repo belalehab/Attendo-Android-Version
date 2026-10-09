@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,17 +110,19 @@ fun AnalyticsScreen(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val safeWs = (activeWorkspace ?: "Workspace").replace("[", "").replace("]", "")
-                    Button(
+                    androidx.compose.material3.IconButton(
                         onClick = { exportPdfLauncher.launch("Attendo_MasterReport_$safeWs.pdf") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF97316)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text("Export PDF", fontWeight = FontWeight.Bold) }
+                        modifier = Modifier.background(Color(0xFFF97316), RoundedCornerShape(12.dp))
+                    ) { 
+                        Icon(Icons.Default.Description, contentDescription = "Export PDF", tint = Color.White) 
+                    }
 
-                    Button(
+                    androidx.compose.material3.IconButton(
                         onClick = { exportExcelLauncher.launch("Attendo_MasterReport_$safeWs.csv") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text("Export Excel", fontWeight = FontWeight.Bold) }
+                        modifier = Modifier.background(Color(0xFF10B981), RoundedCornerShape(12.dp))
+                    ) { 
+                        Icon(Icons.Default.List, contentDescription = "Export Excel", tint = Color.White) 
+                    }
                 }
             }
 
@@ -154,11 +158,11 @@ fun AnalyticsScreen(
 
             // Control Bar
             var typeExpanded by remember { mutableStateOf(false) }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = uiState.searchQuery,
                     onValueChange = { viewModel.updateSearchQuery(it) },
-                    modifier = Modifier.weight(1f).height(50.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
                     placeholder = { Text("Search Student by Name or ID...", color = Color.Gray, fontSize = 12.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
@@ -173,25 +177,30 @@ fun AnalyticsScreen(
                     )
                 )
 
-                Box(modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
-                    Row(
-                        modifier = Modifier.fillMaxHeight().clickable { typeExpanded = true }.padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("TYPE: ", color = Color.Gray, fontSize = 10.sp)
-                        Text(uiState.sessionTypeFilter, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                        listOf("All Sessions", "Lecture", "Section").forEach { type ->
-                            DropdownMenuItem(text = { Text(type) }, onClick = { viewModel.updateSessionTypeFilter(type); typeExpanded = false })
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f).height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().clickable { typeExpanded = true }.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text("TYPE: ", color = Color.Gray, fontSize = 10.sp)
+                            Text(uiState.sessionTypeFilter, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
+                            listOf("All Sessions", "Lecture", "Section").forEach { type ->
+                                DropdownMenuItem(text = { Text(type) }, onClick = { viewModel.updateSessionTypeFilter(type); typeExpanded = false })
+                            }
                         }
                     }
-                }
-                
-                Row(
-                    modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                    
+                    Row(
+                        modifier = Modifier.weight(1f).height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
                     Text("THRESHOLD: ", color = Color.Gray, fontSize = 10.sp)
                     IconButton(onClick = { viewModel.updateThreshold(uiState.threshold - 1) }, modifier = Modifier.size(24.dp)) {
                         Icon(Icons.Default.Remove, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -201,22 +210,12 @@ fun AnalyticsScreen(
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                 }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // List Header
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("STUDENT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(2.5f))
-                Text("RECENT TREND", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.5f), textAlign = TextAlign.Center)
-                Text("ATTENDED", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                Text("ABSENT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                Text("STATUS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -329,12 +328,12 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
                     val total = safeCount + atRiskCount
                     val safePct = if (total > 0) (safeCount.toFloat() / total * 100) else 0f
                     
-                    Canvas(modifier = Modifier.size(100.dp)) {
+                    Canvas(modifier = Modifier.fillMaxHeight().aspectRatio(1f).padding(8.dp)) {
                         val strokeWidth = 12.dp.toPx()
                         
                         // Background circle
                         drawCircle(
-                            color = Color(0xFF1E293B),
+                            color = Color(0xFF0F172A), // darker inner circle for contrast
                             radius = (size.minDimension / 2) - (strokeWidth / 2),
                             style = Stroke(width = strokeWidth)
                         )
@@ -368,35 +367,41 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
                 }
                 
                 // Legend
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(8.dp).background(Color(0xFF14B8A6), CircleShape))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("SAFE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text("$safeCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).background(Color(0xFF14B8A6), CircleShape))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("SAFE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("$safeCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                            }
                         }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(8.dp).background(Color(0xFFF43F5E), CircleShape))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("AT RISK", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Text("$atRiskCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).background(Color(0xFFF43F5E), CircleShape))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("AT RISK", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("$atRiskCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                            }
                         }
                     }
                 }
             }
             
             // Bottom Stats
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("AVG TURNOUT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text("$avgTurnout", color = Color(0xFF14B8A6), fontSize = 18.sp, fontWeight = FontWeight.Black)
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("AVG TURNOUT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$avgTurnout", color = Color(0xFF14B8A6), fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    }
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("TOTAL WEEKS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Text("$totalWeeks", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("TOTAL WEEKS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$totalWeeks", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    }
                 }
             }
         }
@@ -407,68 +412,50 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
 fun StudentAnalyticsCard(stat: StudentStats) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFF1E293B),
-        shape = RoundedCornerShape(12.dp),
-        border = if (stat.isAtRisk) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF991B1B).copy(alpha = 0.5f)) else null
+        color = if (stat.isAtRisk) Color(0xFF450A0A) else Color(0xFF1E293B),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) {
             // Student
-            Column(modifier = Modifier.weight(2.5f)) {
-                Text(stat.studentName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
+            Text(stat.studentName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             
-            // Recent Trend
-            Row(modifier = Modifier.weight(1.5f), horizontalArrangement = Arrangement.Center) {
-                stat.recentTrend.forEach { attended ->
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 2.dp)
-                            .size(8.dp)
-                            .background(if (attended) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
-                    )
-                }
-                if (stat.recentTrend.isEmpty()) {
-                    Text("-", color = Color.Gray)
-                }
-            }
+            Spacer(modifier = Modifier.height(12.dp))
             
-            // Attended
-            Text(
-                text = "${stat.attendedCount}", 
-                color = Color(0xFF14B8A6), 
-                fontSize = 14.sp, 
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f), 
-                textAlign = TextAlign.Center
-            )
-            
-            // Absent
-            Text(
-                text = "${stat.absentCount}", 
-                color = Color(0xFFEF4444), 
-                fontSize = 14.sp, 
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f), 
-                textAlign = TextAlign.Center
-            )
-            
-            // Status
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                val (bgColor, textColor, label) = if (stat.isAtRisk) {
-                    Triple(Color(0xFF991B1B).copy(alpha = 0.2f), Color(0xFFEF4444), "AT RISK")
-                } else {
-                    Triple(Color.Transparent, Color.Gray, "SAFE")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Recent Trend
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    stat.recentTrend.forEach { attended ->
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 2.dp)
+                                .size(8.dp)
+                                .background(if (attended) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
+                        )
+                    }
+                    if (stat.recentTrend.isEmpty()) {
+                        Text("-", color = Color.Gray)
+                    }
                 }
                 
-                Box(
-                    modifier = Modifier
-                        .background(bgColor, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(text = label, color = textColor, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                Text("  |  ", color = Color.Gray, fontSize = 12.sp)
+                
+                // Attended
+                Text("${stat.attendedCount}", color = Color(0xFF14B8A6), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                
+                Text("  |  ", color = Color.Gray, fontSize = 12.sp)
+                
+                // Absent
+                Text("${stat.absentCount}", color = Color(0xFFEF4444), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                
+                Text("  |  ", color = Color.Gray, fontSize = 12.sp)
+                
+                // Status
+                if (stat.isAtRisk) {
+                    Text("AT RISK", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                } else {
+                    Text("SAFE", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

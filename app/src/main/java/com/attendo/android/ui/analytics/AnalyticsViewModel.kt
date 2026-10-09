@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.analytics
+package com.attendo.android.ui.analytics
 
 import android.content.Context
 import android.net.Uri
@@ -79,10 +79,7 @@ class AnalyticsViewModel @Inject constructor(
             val attendanceFlow = attendanceDao.getWorkspaceAttendance(workspace)
             
             // Get semester dates
-            val startStr = settingsDao.getSetting("semester_start") ?: "2024-09-28"
-            val endStr = settingsDao.getSetting("semester_end") ?: "2025-01-15"
-            
-            val (totalWeeks, currentWeekIndex) = calculateSemesterWeeks(startStr, endStr)
+            val currentWeekIndex = 0
 
             combine(
                 studentsFlow, 
@@ -107,10 +104,13 @@ class AnalyticsViewModel @Inject constructor(
                 val uniqueSessions = filteredAttendances.mapNotNull { it.sessionName }.distinct().sorted()
                 val totalSessions = uniqueSessions.size
                 
+                // Real past weeks count instead of semester calendar
+                val totalWeeks = if (totalSessions > 0) totalSessions else 1
+
                 // Calculate Trend
                 val turnoutTrend = uniqueSessions.mapIndexed { index, sessionName ->
                     val turnout = filteredAttendances.count { it.sessionName == sessionName }
-                    val weekLabel = "W${(index % totalWeeks) + 1}"
+                    val weekLabel = sessionName.substringAfterLast(" - ", "W${index + 1}")
                     SessionTurnout(sessionIndex = index, turnout = turnout, label = weekLabel)
                 }
                 
