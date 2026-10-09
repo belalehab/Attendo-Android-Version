@@ -29,6 +29,14 @@ class LicenseViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(hardwareId = hwId)
         
         viewModelScope.launch {
+            val seenWelcome = settingsDao.getSetting("has_seen_welcome") == "true"
+            val setupComplete = settingsDao.getSetting("setup_complete") == "true"
+            
+            _uiState.value = _uiState.value.copy(
+                hasSeenWelcome = seenWelcome,
+                isSetupComplete = setupComplete
+            )
+
             val savedToken = settingsDao.getSetting("license_token")
             if (!savedToken.isNullOrBlank()) {
                 val result = jwtValidator.validateLicense(savedToken, hwId)
@@ -88,5 +96,7 @@ data class LicenseUiState(
     val planType: String? = null,
     val daysLeft: Long? = null,
     val isExpiringSoon: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val hasSeenWelcome: Boolean = false,
+    val isSetupComplete: Boolean = false
 )

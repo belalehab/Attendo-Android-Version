@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.licensing
+package com.attendo.android.ui.licensing
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -13,7 +13,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun LicenseScreen(
     viewModel: LicenseViewModel = hiltViewModel(),
-    onLicenseValid: () -> Unit
+    onLicenseValid: (Boolean, Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val clipboardManager = LocalClipboardManager.current
@@ -21,7 +21,7 @@ fun LicenseScreen(
 
     LaunchedEffect(uiState.isValid) {
         if (uiState.isValid) {
-            onLicenseValid()
+            onLicenseValid(uiState.hasSeenWelcome, uiState.isSetupComplete)
         }
     }
 

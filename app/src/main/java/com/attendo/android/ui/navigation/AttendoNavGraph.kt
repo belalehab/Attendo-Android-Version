@@ -1,4 +1,4 @@
-﻿package com.attendo.android.ui.navigation
+package com.attendo.android.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -23,7 +23,16 @@ fun AttendoNavGraph() {
     NavHost(navController = navController, startDestination = "license") {
         composable("license") {
             LicenseScreen(
-                onLicenseValid = { navController.navigate("welcome") { popUpTo("license") { inclusive = true } } }
+                onLicenseValid = { hasSeenWelcome, isSetupComplete ->
+                    val destination = if (isSetupComplete) {
+                        "workspace_selector"
+                    } else if (hasSeenWelcome) {
+                        "setup"
+                    } else {
+                        "welcome"
+                    }
+                    navController.navigate(destination) { popUpTo("license") { inclusive = true } } 
+                }
             )
         }
         composable("welcome") {
