@@ -320,15 +320,15 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text("CLASS STATUS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            Row(modifier = Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 // Donut
-                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(100.dp), contentAlignment = Alignment.Center) {
                     val total = safeCount + atRiskCount
                     val safePct = if (total > 0) (safeCount.toFloat() / total * 100) else 0f
                     
-                    Canvas(modifier = Modifier.fillMaxHeight().aspectRatio(1f).padding(8.dp)) {
+                    Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
                         val strokeWidth = 12.dp.toPx()
                         
                         // Background circle
@@ -361,47 +361,45 @@ fun DonutChartCard(safeCount: Int, atRiskCount: Int, avgTurnout: Int, totalWeeks
                     }
                     
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${String.format("%.1f", safePct)}%", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                        Text("${String.format("%.1f", safePct)}%", color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp)
                         Text("SAFE", color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 
+                Spacer(modifier = Modifier.width(32.dp))
+                
                 // Legend
-                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).background(Color(0xFF14B8A6), CircleShape))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("SAFE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("$safeCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                            }
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).background(Color(0xFF14B8A6), CircleShape))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("SAFE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("$safeCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).background(Color(0xFFF43F5E), CircleShape))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("AT RISK", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("$atRiskCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                            }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).background(Color(0xFFF43F5E), CircleShape))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("AT RISK", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("$atRiskCount", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
                         }
                     }
                 }
             }
             
+            Spacer(modifier = Modifier.height(16.dp))
+            
             // Bottom Stats
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("AVG TURNOUT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("$avgTurnout", color = Color(0xFF14B8A6), fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("AVG TURNOUT", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("$avgTurnout", color = Color(0xFF14B8A6), fontSize = 18.sp, fontWeight = FontWeight.Black)
                 }
-                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TOTAL WEEKS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text("$totalWeeks", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("TOTAL WEEKS", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("$totalWeeks", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
                 }
             }
         }

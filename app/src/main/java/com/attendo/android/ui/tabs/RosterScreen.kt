@@ -187,8 +187,8 @@ fun RosterScreen(
                         modifier = Modifier.size(18.dp)
                     ) 
                 },
-                trailingIcon = {
-                    if (localSearch.isNotEmpty()) {
+                trailingIcon = if (localSearch.isNotEmpty()) {
+                    {
                         IconButton(onClick = { localSearch = "" }) {
                             Icon(
                                 Icons.Default.Close, 
@@ -198,7 +198,7 @@ fun RosterScreen(
                             )
                         }
                     }
-                },
+                } else null,
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = TextFieldDefaults.colors(
