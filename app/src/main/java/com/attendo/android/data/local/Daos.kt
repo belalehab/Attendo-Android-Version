@@ -9,14 +9,14 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 data class SessionSummary(
-    val sessionName: String,
-    val date: String,
-    val attendeesCount: Int
+    val sessionName: String = "",
+    val date: String = "",
+    val attendeesCount: Int = 0
 )
 
 data class AttendanceWithStudent(
-    @androidx.room.Embedded val attendance: Attendance,
-    val studentName: String
+    @androidx.room.Embedded val attendance: Attendance = Attendance(nationalId = null, sessionName = null, timestamp = null),
+    val studentName: String = ""
 )
 
 @Dao
@@ -64,8 +64,8 @@ interface AttendanceDao {
     fun getDistinctSessions(workspacePrefix: String): Flow<List<String>>
     
     @Query("""
-        SELECT session_name AS sessionName, 
-               MAX(timestamp) AS date, 
+        SELECT COALESCE(session_name, '') AS sessionName, 
+               COALESCE(MAX(timestamp), '') AS date, 
                COUNT(*) AS attendeesCount 
         FROM attendance 
         WHERE session_name LIKE :workspacePrefix AND is_archived = :isArchived

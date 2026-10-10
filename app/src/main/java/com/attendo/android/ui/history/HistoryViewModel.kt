@@ -101,29 +101,41 @@ class HistoryViewModel @Inject constructor(
         // Track active count always
         countJob?.cancel()
         countJob = viewModelScope.launch {
-            attendanceDao.getSessionSummaries(prefix, 0).collect { activeList ->
-                _activeCount.value = activeList.size
-                if (!_isArchiveView.value) {
-                    _sessionSummaries.value = activeList
+            try {
+                attendanceDao.getSessionSummaries(prefix, 0).collect { activeList ->
+                    _activeCount.value = activeList.size
+                    if (!_isArchiveView.value) {
+                        _sessionSummaries.value = activeList
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
         
         sessionsJob?.cancel()
         sessionsJob = viewModelScope.launch {
-            if (_isArchiveView.value) {
-                attendanceDao.getSessionSummaries(prefix, 1).collect { archivedList ->
-                    if (_isArchiveView.value) {
-                        _sessionSummaries.value = archivedList
+            try {
+                if (_isArchiveView.value) {
+                    attendanceDao.getSessionSummaries(prefix, 1).collect { archivedList ->
+                        if (_isArchiveView.value) {
+                            _sessionSummaries.value = archivedList
+                        }
                     }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
         
         studentsJob?.cancel()
         studentsJob = viewModelScope.launch {
-            studentDao.getAllStudentsByGrade(workspace).collect { students ->
-                _workspaceStudents.value = students
+            try {
+                studentDao.getAllStudentsByGrade(workspace).collect { students ->
+                    _workspaceStudents.value = students
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

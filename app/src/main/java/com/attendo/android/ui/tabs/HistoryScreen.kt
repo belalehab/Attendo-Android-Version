@@ -12,6 +12,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -67,8 +68,9 @@ fun HistoryScreen(
     if (uiState.selectedSession == null) {
         // Session List View
         val filteredSessions = uiState.sessionSummaries.filter { summary ->
-            summary.sessionName.contains(searchQuery, ignoreCase = true) &&
-            (typeFilter == "All Sessions" || summary.sessionName.contains(typeFilter, ignoreCase = true))
+            val name = summary.sessionName ?: ""
+            name.contains(searchQuery, ignoreCase = true) &&
+            (typeFilter == "All Sessions" || name.contains(typeFilter, ignoreCase = true))
         }
 
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
@@ -168,13 +170,13 @@ fun HistoryScreen(
                             ) 
                         },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = if (searchQuery.isNotEmpty()) {
-                            {
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { searchQuery = "" }) {
                                     Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
                                 }
                             }
-                        } else null,
+                        },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
@@ -278,7 +280,7 @@ fun HistoryScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filteredSessions, key = { it.sessionName }) { summary ->
+                        itemsIndexed(filteredSessions, key = { index, summary -> "${summary.sessionName}_$index" }) { _, summary ->
                             val isSelected = selectedSessionNames.contains(summary.sessionName)
                             SessionCard(
                                 summary = summary,
@@ -434,7 +436,7 @@ fun HistoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredAudit, key = { it.student.id }) { entry ->
+                    itemsIndexed(filteredAudit, key = { index, entry -> "${entry.student.id}_$index" }) { _, entry ->
                         AuditEntryCard(
                             entry = entry,
                             onToggleState = { viewModel.cycleAttendanceState(entry.student) },
@@ -520,7 +522,7 @@ fun SessionCard(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val safeName = summary.sessionName.replace("[", "").replace("]", "")
+                val safeName = (summary.sessionName ?: "").replace("[", "").replace("]", "")
                 Text(
                     text = safeName, 
                     color = Color.White, 
@@ -529,13 +531,18 @@ fun SessionCard(
                     modifier = Modifier.weight(2f)
                 )
                 
+                val rawDate = summary.date ?: ""
                 val dateStr = try {
-                    val parser = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-                    val formatter = java.text.SimpleDateFormat("M/d/yyyy", java.util.Locale.US)
-                    val date = parser.parse(summary.date)
-                    if (date != null) formatter.format(date) else summary.date.take(10)
+                    if (rawDate.isNotBlank()) {
+                        val parser = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                        val formatter = java.text.SimpleDateFormat("M/d/yyyy", java.util.Locale.US)
+                        val date = parser.parse(rawDate)
+                        if (date != null) formatter.format(date) else rawDate.take(10)
+                    } else {
+                        "-"
+                    }
                 } catch (e: Exception) {
-                    summary.date.take(10)
+                    if (rawDate.length >= 10) rawDate.take(10) else rawDate
                 }
                 
                 Text(
