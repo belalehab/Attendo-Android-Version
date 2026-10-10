@@ -3,21 +3,31 @@ package com.attendo.android.ui.tabs
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Description
@@ -29,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -55,7 +66,8 @@ fun RosterScreen(
     var editingStudent by remember { mutableStateOf<Student?>(null) }
     var archivingStudent by remember { mutableStateOf<Student?>(null) }
     var deletingStudent by remember { mutableStateOf<Student?>(null) }
-    val localSearch by remember { mutableStateOf("") }
+    var isFabExpanded by remember { mutableStateOf(false) }
+    var localSearch by remember { mutableStateOf("") }
     
     val context = LocalContext.current
     var selectedStudentIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -95,7 +107,7 @@ fun RosterScreen(
     val query = localSearch.ifBlank { searchQuery }
     val filteredStudents = uiState.students.filter {
         it.name.contains(query, ignoreCase = true) || 
-        (it.nationalId?.contains(query) == true)
+        (it.nationalId?.contains(query, ignoreCase = true) == true)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
@@ -153,89 +165,51 @@ fun RosterScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Action Buttons
-            if (!uiState.isArchiveView) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { templateLauncher.launch("Attendo_Template.csv") },
-                        border = BorderStroke(1.dp, Color.Gray),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                    ) {
-                        Icon(Icons.Outlined.Description, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Template", fontSize = 12.sp)
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .height(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .drawBehind {
-                                drawRoundRect(
-                                    color = Color.Gray,
-                                    style = Stroke(
-                                        width = 2f,
-                                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                                    ),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
-                                )
-                            }
-                            .background(Color.Transparent)
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            modifier = Modifier.clickable { csvLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv")) },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Outlined.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Import CSV", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            // Search Bar
+            OutlinedTextField(
+                value = localSearch,
+                onValueChange = { localSearch = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                placeholder = { 
+                    Text(
+                        if (uiState.isArchiveView) "Search archived students by name or national ID..." else "Search students by name or national ID...", 
+                        color = Color.Gray, 
+                        fontSize = 12.sp
+                    ) 
+                },
+                leadingIcon = { 
+                    Icon(
+                        Icons.Default.Search, 
+                        contentDescription = null, 
+                        tint = Color.Gray, 
+                        modifier = Modifier.size(18.dp)
+                    ) 
+                },
+                trailingIcon = {
+                    if (localSearch.isNotEmpty()) {
+                        IconButton(onClick = { localSearch = "" }) {
+                            Icon(
+                                Icons.Default.Close, 
+                                contentDescription = "Clear", 
+                                tint = Color.Gray, 
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
-
-                    OutlinedButton(
-                        onClick = { qrZipLauncher.launch("Attendo_QRs.zip") },
-                        border = BorderStroke(1.dp, Color(0xFF14B8A6)),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6)),
-                        modifier = Modifier.padding(0.dp)
-                    ) {
-                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("QRs", fontSize = 12.sp)
-                    }
-
-                    Button(
-                        onClick = { showAddDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488), contentColor = Color.White),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            } else {
-                Row {
-                    OutlinedButton(
-                        onClick = { qrZipLauncher.launch("Attendo_QRs.zip") },
-                        border = BorderStroke(1.dp, Color(0xFF14B8A6)),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF14B8A6))
-                    ) {
-                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Download QRs", fontSize = 12.sp)
-                    }
-                }
-            }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF1E293B),
+                    unfocusedContainerColor = Color(0xFF1E293B),
+                    focusedIndicatorColor = Color(0xFF14B8A6),
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
@@ -266,7 +240,8 @@ fun RosterScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(filteredStudents, key = { it.id }) { student ->
                         val isSelected = selectedStudentIds.contains(student.id)
@@ -311,6 +286,156 @@ fun RosterScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Click-outside overlay to dismiss expanded FAB actions
+        if (isFabExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        isFabExpanded = false
+                    }
+            )
+        }
+
+        // Floating Action Button & Actions (Bottom Right)
+        if (!uiState.isArchiveView) {
+            val rotation by animateFloatAsState(
+                targetValue = if (isFabExpanded) 45f else 0f,
+                label = "fab_rotation"
+            )
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                AnimatedVisibility(
+                    visible = isFabExpanded,
+                    enter = fadeIn() + expandHorizontally(expandFrom = Alignment.End),
+                    exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .background(Color(0xFF1E293B), RoundedCornerShape(28.dp))
+                                .border(BorderStroke(1.dp, Color(0xFF334155)), RoundedCornerShape(28.dp))
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // 1. Template
+                            IconButton(
+                                onClick = {
+                                    isFabExpanded = false
+                                    templateLauncher.launch("Attendo_Template.csv")
+                                },
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Description,
+                                    contentDescription = "Template",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            // 2. Import CSV
+                            IconButton(
+                                onClick = {
+                                    isFabExpanded = false
+                                    csvLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv"))
+                                },
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.UploadFile,
+                                    contentDescription = "Import CSV",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            // 3. Download QRs
+                            IconButton(
+                                onClick = {
+                                    isFabExpanded = false
+                                    qrZipLauncher.launch("Attendo_QRs.zip")
+                                },
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Download,
+                                    contentDescription = "Download QRs",
+                                    tint = Color(0xFF14B8A6),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            // 4. Add Student
+                            FilledIconButton(
+                                onClick = {
+                                    isFabExpanded = false
+                                    showAddDialog = true
+                                },
+                                modifier = Modifier.size(42.dp),
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = Color(0xFF0D9488),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonAdd,
+                                    contentDescription = "Add Student",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                }
+
+                FloatingActionButton(
+                    onClick = { isFabExpanded = !isFabExpanded },
+                    containerColor = Color(0xFF14B8A6),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = if (isFabExpanded) "Close actions" else "Add or import",
+                        modifier = Modifier.rotate(rotation).size(24.dp)
+                    )
+                }
+            }
+        } else {
+            // Archive view FAB for downloading QRs
+            FloatingActionButton(
+                onClick = { qrZipLauncher.launch("Attendo_QRs.zip") },
+                containerColor = Color(0xFF14B8A6),
+                contentColor = Color.White,
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Download,
+                    contentDescription = "Download QRs",
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -154,13 +155,26 @@ fun HistoryScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Control Bar
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        placeholder = { Text("Search Active sessions...", color = Color.Gray, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        placeholder = { 
+                            Text(
+                                if (uiState.isArchiveView) "Search Archived sessions..." else "Search Active sessions...", 
+                                color = Color.Gray, 
+                                fontSize = 12.sp
+                            ) 
+                        },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = TextFieldDefaults.colors(
@@ -173,41 +187,73 @@ fun HistoryScreen(
                         )
                     )
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
-                        modifier = Modifier
-                            .height(50.dp)
-                            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
-                            .clickable {
-                                if (selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()) {
-                                    selectedSessionNames = emptySet()
-                                } else {
-                                    selectedSessionNames = filteredSessions.map { it.sessionName }.toSet()
-                                }
-                            }
-                            .padding(horizontal = 12.dp),
+                        modifier = Modifier.fillMaxWidth(), 
+                        horizontalArrangement = Arrangement.spacedBy(8.dp), 
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
-                            contentDescription = null,
-                            tint = if (selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()) Color(0xFF14B8A6) else Color.Gray,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("SELECT ALL", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Box(modifier = Modifier.height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
-                        Row(
-                            modifier = Modifier.fillMaxHeight().clickable { typeExpanded = true }.padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("TYPE: ", color = Color.Gray, fontSize = 10.sp)
-                            Text(typeFilter, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        // Type dropdown on the left
+                        Box(modifier = Modifier.weight(1f).height(50.dp).background(Color(0xFF1E293B), RoundedCornerShape(12.dp))) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable { typeExpanded = true }
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("TYPE: ", color = Color.Gray, fontSize = 10.sp)
+                                Text(typeFilter, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
+                                listOf("All Sessions", "Lecture", "Section").forEach { type ->
+                                    DropdownMenuItem(
+                                        text = { Text(type) }, 
+                                        onClick = { 
+                                            typeFilter = type
+                                            typeExpanded = false 
+                                        }
+                                    )
+                                }
+                            }
                         }
-                        DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                            listOf("All Sessions", "Lecture", "Section").forEach { type ->
-                                DropdownMenuItem(text = { Text(type) }, onClick = { typeFilter = type; typeExpanded = false })
+
+                        // Select all on the right
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
+                                .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    if (selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()) {
+                                        selectedSessionNames = emptySet()
+                                    } else {
+                                        selectedSessionNames = filteredSessions.map { it.sessionName }.toSet()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                val isAllSelected = selectedSessionNames.size == filteredSessions.size && filteredSessions.isNotEmpty()
+                                Icon(
+                                    imageVector = if (isAllSelected) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
+                                    contentDescription = null,
+                                    tint = if (isAllSelected) Color(0xFF14B8A6) else Color.Gray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isAllSelected) "ALL SELECTED" else "SELECT ALL", 
+                                    color = if (isAllSelected) Color(0xFF14B8A6) else Color.White, 
+                                    fontSize = 11.sp, 
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
