@@ -40,15 +40,39 @@ import com.attendo.android.data.local.SessionSummary
 import com.attendo.android.ui.history.HistoryViewModel
 import com.attendo.android.ui.history.SessionAuditEntry
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
     activeWorkspace: String?,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    
+
+    LaunchedEffect(activeWorkspace) {
+        if (activeWorkspace != null) {
+            viewModel.loadSessions(activeWorkspace)
+        }
+    }
+
+    if (uiState.selectedSession == null) {
+        HistorySessionListView(
+            uiState = uiState,
+            viewModel = viewModel
+        )
+    } else {
+        HistoryAuditView(
+            selectedSession = uiState.selectedSession!!,
+            auditEntries = uiState.auditEntries,
+            viewModel = viewModel
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+private fun HistorySessionListView(
+    uiState: com.attendo.android.ui.history.HistoryUiState,
+    viewModel: HistoryViewModel
+) {
     var searchQuery by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf("All Sessions") }
     var typeExpanded by remember { mutableStateOf(false) }
@@ -58,14 +82,6 @@ fun HistoryScreen(
     
     var archivingSession by remember { mutableStateOf<SessionSummary?>(null) }
     var deletingSession by remember { mutableStateOf<SessionSummary?>(null) }
-    
-    LaunchedEffect(activeWorkspace) {
-        if (activeWorkspace != null) {
-            viewModel.loadSessions(activeWorkspace)
-        }
-    }
-
-    if (uiState.selectedSession == null) {
         // Session List View
         val filteredSessions = uiState.sessionSummaries.filter { summary ->
             val name = summary.sessionName ?: ""
@@ -321,25 +337,31 @@ fun HistoryScreen(
                 dismissButton = { TextButton(onClick = { deletingSession = null }) { Text("Cancel") } }
             )
         }
+    }
 
-    } else {
-        // Session Audit View (Editing a session)
-        BackHandler { viewModel.selectSession(null) }
-        
-        var auditSearch by remember { mutableStateOf("") }
-        val pdfLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.CreateDocument("application/pdf"),
-            onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsPdf(context, it) } }
-        )
-        val xlsxLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-            onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsXlsx(context, it) } }
-        )
+@Composable
+private fun HistoryAuditView(
+    selectedSession: String,
+    auditEntries: List<SessionAuditEntry>,
+    viewModel: HistoryViewModel
+) {
+    val context = LocalContext.current
+    BackHandler { viewModel.selectSession(null) }
+    
+    var auditSearch by remember { mutableStateOf("") }
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf"),
+        onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsPdf(context, it) } }
+    )
+    val xlsxLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        onResult = { uri: Uri? -> uri?.let { viewModel.exportSessionAsXlsx(context, it) } }
+    )
 
-        val filteredAudit = uiState.auditEntries.filter {
-            it.student.name.contains(auditSearch, ignoreCase = true) ||
-            (it.student.nationalId?.contains(auditSearch) == true)
-        }
+    val filteredAudit = auditEntries.filter {
+        it.student.name.contains(auditSearch, ignoreCase = true) ||
+        (it.student.nationalId?.contains(auditSearch) == true)
+    }
         
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
             Column(
@@ -367,7 +389,7 @@ fun HistoryScreen(
                                 Text("EDIT MODE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Text(uiState.selectedSession!!, color = Color.Gray, fontSize = 12.sp)
+                        Text(selectedSession, color = Color.Gray, fontSize = 12.sp)
                     }
                 }
                 
@@ -393,7 +415,7 @@ fun HistoryScreen(
                     
                     Button(
                         onClick = { 
-                            val safeTitle = uiState.selectedSession!!.replace("[", "").replace("]", "").replace(" ", "_")
+                            val safeTitle = selectedSession.replace("[", "").replace("]", "").replace(" ", "_")
                             pdfLauncher.launch("Attendo_Audit_$safeTitle.pdf") 
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF97316)),
@@ -403,7 +425,7 @@ fun HistoryScreen(
                     
                     Button(
                         onClick = { 
-                            val safeTitle = uiState.selectedSession!!.replace("[", "").replace("]", "").replace(" ", "_")
+                            val safeTitle = selectedSession.replace("[", "").replace("]", "").replace(" ", "_")
                             xlsxLauncher.launch("Attendo_Audit_$safeTitle.xlsx") 
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14B8A6)),
@@ -440,7 +462,6 @@ fun HistoryScreen(
             }
         }
     }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
